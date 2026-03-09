@@ -11,6 +11,7 @@ interface PageThumbnailProps {
   onRotate: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleSelect: (id: string) => void;
+  onMovePage: (id: string, direction: 'left' | 'right') => void;
 }
 
 
@@ -118,14 +119,16 @@ export default function PageThumbnail(props: PageThumbnailProps) {
     opacity: isDragging ? 0 : 1, // Hide the original item when dragging
   };
 
+  const showMobileDragControls = props.activeTool === 'rearrange';
+
   return (
     <ThumbnailCard
       {...props}
       style={style}
       isDragging={isDragging}
       setNodeRef={setNodeRef}
-      attributes={attributes}
-      listeners={listeners}
+      attributes={showMobileDragControls ? undefined : attributes}
+      listeners={showMobileDragControls ? undefined : listeners}
     />
   );
 }

@@ -31,6 +31,7 @@ interface WorkspaceProps {
   onRotate: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleSelect: (id: string) => void;
+  onMovePage: (id: string, direction: 'left' | 'right') => void;
   splitRange: string;
   onSplitRangeChange: (range: string) => void;
   splitMode: 'range' | 'individual';
@@ -48,6 +49,7 @@ export default function Workspace({
   onRotate,
   onDelete,
   onToggleSelect,
+  onMovePage,
   splitRange,
   onSplitRangeChange,
   splitMode,
@@ -122,6 +124,7 @@ export default function Workspace({
                 onRotate={onRotate}
                 onDelete={onDelete}
                 onToggleSelect={onToggleSelect}
+                onMovePage={onMovePage}
               />
             ))}
           </div>
@@ -139,6 +142,7 @@ export default function Workspace({
                 onRotate={onRotate}
                 onDelete={onDelete}
                 onToggleSelect={onToggleSelect}
+                onMovePage={onMovePage}
                 isOverlay={true}
                 style={{ cursor: 'grabbing', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', transform: 'scale(1.05)', rotate: '2deg' }}
               />

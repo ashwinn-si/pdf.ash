@@ -10,7 +10,10 @@ export default function ProgressOverlay({
   return (
     <div className="progress-overlay">
       <div className="progress-card">
-        <h3>⚙️ Processing</h3>
+        <div className="spinner-container">
+          <div className="custom-spinner"></div>
+        </div>
+        <h3>Processing</h3>
         <p>{message}</p>
         <div className="progress-bar-container">
           <div

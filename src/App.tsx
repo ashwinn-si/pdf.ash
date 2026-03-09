@@ -147,6 +147,27 @@ function App() {
     [pages, updatePages]
   );
 
+  // Move a page manually (for mobile view where DND is disabled)
+  const handleMovePage = useCallback(
+    (id: string, direction: 'left' | 'right') => {
+      const index = pages.findIndex(p => p.id === id);
+      if (index === -1) return;
+
+      let newIndex = index;
+      if (direction === 'left' && index > 0) {
+        newIndex = index - 1;
+      } else if (direction === 'right' && index < pages.length - 1) {
+        newIndex = index + 1;
+      }
+
+      if (newIndex !== index) {
+        const newPages = arrayMove(pages, index, newIndex);
+        updatePages(newPages);
+      }
+    },
+    [pages, updatePages]
+  );
+
   // Add more files
   const handleAddFiles = useCallback(() => {
     fileInputRef.current?.click();
@@ -273,6 +294,7 @@ function App() {
           onRotate={handleRotate}
           onDelete={handleDelete}
           onToggleSelect={handleToggleSelect}
+          onMovePage={handleMovePage}
           splitRange={splitRange}
           onSplitRangeChange={setSplitRange}
           splitMode={splitMode}
