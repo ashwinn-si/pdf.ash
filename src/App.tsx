@@ -34,7 +34,7 @@ import './App.css';
 import type { ConvertFormat } from './components/ConvertPanel';
 
 function App() {
-  const [activeTool, setActiveTool] = useState<Tool>('rearrange');
+  const [activeTool, setActiveTool] = useState<Tool>('merge');
   const [history, setHistory] = useState<HistoryState>(createInitialHistory([]));
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);

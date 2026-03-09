@@ -7,6 +7,8 @@ import {
   ImagePlus,
   PanelLeftClose,
   PanelLeft,
+  Layers,
+  LayoutGrid,
 } from 'lucide-react';
 
 export type Tool = 'merge' | 'rearrange' | 'split' | 'compress' | 'convert' | 'imageToPdf';
@@ -20,6 +22,8 @@ interface SidebarProps {
 }
 
 const tools: { id: Tool; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: 'merge', label: 'Merge', icon: <Layers size={18} />, description: 'Merge multiple PDFs' },
+  { id: 'rearrange', label: 'Rearrange', icon: <LayoutGrid size={18} />, description: 'Rearrange PDF pages' },
   { id: 'split', label: 'Split', icon: <Scissors size={18} />, description: 'Split into parts' },
   { id: 'compress', label: 'Compress', icon: <Minimize2 size={18} />, description: 'Reduce file size' },
   { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },
@@ -45,7 +49,7 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
           <button
             key={tool.id}
             className={`sidebar-tool ${activeTool === tool.id ? 'active' : ''}`}
-            onClick={() => onSelectTool(activeTool === tool.id ? 'rearrange' : tool.id)}
+            onClick={() => onSelectTool(activeTool === tool.id ? 'merge' : tool.id)}
             title={tool.description}
           >
             <span className="sidebar-tool-icon">{tool.icon}</span>
