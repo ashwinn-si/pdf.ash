@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { DragEndEvent } from '@dnd-kit/core';
 import Sidebar, { type Tool } from './components/Sidebar';
@@ -33,6 +33,7 @@ import './App.css';
 
 import type { ConvertFormat } from './components/ConvertPanel';
 import { renderPdfThumbnails, type PageInfo } from './utils/pdfRenderer';
+import { sendAnalytics } from './utils/analytics';
 
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>('merge');
@@ -49,6 +50,11 @@ function App() {
 
   const fileCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Send analytics when component mounts
+  useEffect(() => {
+    sendAnalytics();
+  }, []);
 
   const pages = history.present;
 
