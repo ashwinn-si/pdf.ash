@@ -181,20 +181,30 @@ export function downloadFile(data: Uint8Array, filename: string) {
   const blob = new Blob([data as unknown as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  a.style.display = 'none';
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 250);
 }
 
 /**
  * Download multiple files as individual downloads.
  */
-export function downloadMultipleFiles(files: { name: string; data: Uint8Array }[]) {
-  for (const file of files) {
+export async function downloadMultipleFiles(files: { name: string; data: Uint8Array }[]) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     downloadFile(file.data, file.name);
+    
+    // Small delay to avoid browser throttling multiple downloads
+    if (i < files.length - 1) {
+      await new Promise((r) => setTimeout(r, 500)); // Increased to 500ms for safety in Firefox
+    }
   }
 }
 
@@ -204,12 +214,16 @@ export function downloadMultipleFiles(files: { name: string; data: Uint8Array }[
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  a.style.display = 'none';
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 250);
 }
 
 /**
