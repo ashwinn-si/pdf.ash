@@ -3,10 +3,9 @@ import { Upload, FileText } from 'lucide-react';
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
-  acceptImages?: boolean;
 }
 
-export default function UploadZone({ onFilesSelected, acceptImages = false }: UploadZoneProps) {
+export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -39,9 +38,7 @@ export default function UploadZone({ onFilesSelected, acceptImages = false }: Up
       setIsDragging(false);
       dragCounter.current = 0;
 
-      const validTypes = acceptImages
-        ? ['image/png', 'image/jpeg', 'image/jpg']
-        : ['application/pdf'];
+      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
       const files = Array.from(e.dataTransfer.files).filter(
         (f) => validTypes.includes(f.type)
       );
@@ -76,7 +73,7 @@ export default function UploadZone({ onFilesSelected, acceptImages = false }: Up
       <input
         ref={inputRef}
         type="file"
-        accept={acceptImages ? '.jpg,.jpeg,.png' : '.pdf'}
+        accept=".pdf,.jpg,.jpeg,.png"
         multiple
         onChange={handleFileInput}
         style={{ display: 'none' }}
@@ -86,7 +83,7 @@ export default function UploadZone({ onFilesSelected, acceptImages = false }: Up
         {isDragging ? <FileText size={36} /> : <Upload size={36} />}
       </div>
 
-      <h2>{isDragging ? (acceptImages ? 'Drop your images here' : 'Drop your PDFs here') : (acceptImages ? 'Upload Images' : 'Upload PDF Files')}</h2>
+      <h2>{isDragging ? 'Drop your files here' : 'Upload Files'}</h2>
       <p>Drag and drop or click to browse your files</p>
 
       <button
@@ -97,14 +94,11 @@ export default function UploadZone({ onFilesSelected, acceptImages = false }: Up
         }}
       >
         <Upload size={18} />
-        {acceptImages ? 'Select Images' : 'Select PDF Files'}
+        Select Files
       </button>
 
       <div className="upload-zone-formats">
-        {acceptImages
-          ? 'Supports .jpg, .jpeg, .png files • Multiple files allowed'
-          : 'Supports .pdf files • Multiple files allowed'
-        }
+        Supports .pdf, .jpg, .jpeg, .png files • Multiple files allowed
       </div>
     </div>
   );

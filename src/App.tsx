@@ -369,7 +369,7 @@ function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept={activeTool === 'imageToPdf' ? '.pdf,.jpg,.jpeg,.png' : '.pdf'}
+        accept=".pdf,.jpg,.jpeg,.png"
         multiple
         onChange={handleFileInputChange}
         style={{ display: 'none' }}
