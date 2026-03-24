@@ -21,6 +21,7 @@ import PageThumbnail, { ThumbnailCard } from './PageThumbnail';
 import UploadZone from './UploadZone';
 import SplitPanel from './SplitPanel';
 import ConvertPanel from './ConvertPanel';
+import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
 import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
@@ -41,6 +42,8 @@ interface WorkspaceProps {
   onSplitModeChange: (mode: 'range' | 'individual') => void;
   convertFormat: ConvertFormat;
   onConvertFormatChange: (format: ConvertFormat) => void;
+  compressionQuality: number;
+  onCompressionQualityChange: (quality: number) => void;
   acceptImages?: boolean;
   onUnlocked?: (buffer: ArrayBuffer, fileName: string) => void;
 }
@@ -60,6 +63,8 @@ export default function Workspace({
   onSplitModeChange,
   convertFormat,
   onConvertFormatChange,
+  compressionQuality,
+  onCompressionQualityChange,
   onUnlocked,
 }: WorkspaceProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -144,6 +149,13 @@ export default function Workspace({
           convertFormat={convertFormat}
           onFormatChange={onConvertFormatChange}
           totalPages={pages.length}
+        />
+      )}
+
+      {activeTool === 'compress' && (
+        <CompressPanel
+          compressionQuality={compressionQuality}
+          onQualityChange={onCompressionQualityChange}
         />
       )}
 

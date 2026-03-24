@@ -132,14 +132,67 @@ export async function splitPdf(
 }
 
 /**
- * Compress a PDF by re-encoding it with pdf-lib (removes unused objects).
+ * Compress a PDF by re-encoding pages as compressed JPEGs to significantly reduce file size.
  */
 export async function compressPdf(
   pages: PageInfo[],
+  quality: number,
   onProgress?: (progress: number) => void
 ): Promise<Uint8Array> {
-  // Build the PDF using standard merge which naturally drops unused objects
-  return buildPdf(pages, onProgress);
+  const pdfjsLib = await import('pdfjs-dist');
+  const outputPdf = await PDFDocument.create();
+
+  const loadedPdfs: Map<number, any> = new Map();
+  for (const page of pages) {
+    const buffer = fileBuffers.get(page.fileIndex);
+    if (buffer && !loadedPdfs.has(page.fileIndex)) {
+      const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+      loadedPdfs.set(page.fileIndex, doc);
+    }
+  }
+
+  for (let i = 0; i < pages.length; i++) {
+    const pageInfo = pages[i];
+    const pdfDoc = loadedPdfs.get(pageInfo.fileIndex);
+    if (!pdfDoc) continue;
+
+    const pdfPage = await pdfDoc.getPage(pageInfo.pageIndex + 1);
+    
+    // Scale 1.5 offers a balance between maintaining readability and reducing size
+    const scale = 1.5;
+    const viewport = pdfPage.getViewport({ scale, rotation: pageInfo.rotation });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d')!;
+
+    // White background for JPEG
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    await pdfPage.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+
+    // Compress to JPEG with user-specified quality
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    });
+
+    if (blob) {
+      const imageBytes = await blob.arrayBuffer();
+      const compressedImage = await outputPdf.embedJpg(imageBytes);
+      
+      const { width, height } = compressedImage.scale(1);
+      const outputPage = outputPdf.addPage([width, height]);
+      outputPage.drawImage(compressedImage, { x: 0, y: 0, width, height });
+    }
+
+    if (onProgress) {
+      onProgress(Math.round(((i + 1) / pages.length) * 100));
+    }
+  }
+
+  return outputPdf.save();
 }
 
 /**

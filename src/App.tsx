@@ -45,6 +45,7 @@ function App() {
   const [splitRange, setSplitRange] = useState('');
   const [splitMode, setSplitMode] = useState<'range' | 'individual'>('range');
   const [convertFormat, setConvertFormat] = useState<ConvertFormat>('png');
+  const [compressionQuality, setCompressionQuality] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
@@ -219,7 +220,7 @@ function App() {
         case 'imageToPdf':
         case 'compress': {
           const data = activeTool === 'compress'
-            ? await compressPdf(pages, setProgress)
+            ? await compressPdf(pages, compressionQuality / 100, setProgress)
             : await buildPdf(pages, setProgress);
           const filename = activeTool === 'compress'
             ? 'compressed.pdf'
@@ -267,7 +268,7 @@ function App() {
       setIsProcessing(false);
       setProgress(0);
     }
-  }, [pages, activeTool, splitMode, splitRange, convertFormat, updatePages]);
+  }, [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, updatePages]);
 
   // Process button handler – for merge/rearrange, show password modal first
   const handleProcessClick = useCallback(() => {
@@ -346,6 +347,8 @@ function App() {
           onSplitModeChange={setSplitMode}
           convertFormat={convertFormat}
           onConvertFormatChange={setConvertFormat}
+          compressionQuality={compressionQuality}
+          onCompressionQualityChange={setCompressionQuality}
           acceptImages={activeTool === 'imageToPdf'}
           onUnlocked={handleUnlocked}
         />
