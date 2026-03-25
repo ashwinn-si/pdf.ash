@@ -9,6 +9,7 @@ import BottomBar from './components/BottomBar';
 import ProgressOverlay from './components/ProgressOverlay';
 import PasswordModal from './components/PasswordModal';
 import FilePasswordModal from './components/FilePasswordModal';
+import { Analytics } from '@vercel/analytics/react';
 import {
   storeFileBuffer,
   buildPdf,
@@ -67,19 +68,16 @@ function App() {
 
   const pages = history.present;
 
-  const updatePages = useCallback(
-    (newPages: PageInfo[]) => {
-      setHistory((prev) => pushState(prev, newPages));
-    },
-    []
-  );
+  const updatePages = useCallback((newPages: PageInfo[]) => {
+    setHistory(prev => pushState(prev, newPages));
+  }, []);
 
   const handleUndo = useCallback(() => {
-    setHistory((prev) => historyUndo(prev));
+    setHistory(prev => historyUndo(prev));
   }, []);
 
   const handleRedo = useCallback(() => {
-    setHistory((prev) => historyRedo(prev));
+    setHistory(prev => historyRedo(prev));
   }, []);
 
   // File upload handler
@@ -104,8 +102,10 @@ function App() {
 
           // Render thumbnails from the PDF buffer (whether originally PDF or converted from image)
           const blob = new Blob([buffer], { type: 'application/pdf' });
-          const pdfFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".pdf", { type: 'application/pdf' });
-          
+          const pdfFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.pdf', {
+            type: 'application/pdf',
+          });
+
           try {
             const thumbnails = await renderPdfThumbnails(pdfFile, fileIndex);
             newPages.push(...thumbnails);
@@ -133,28 +133,36 @@ function App() {
     [pages, updatePages]
   );
 
-  const handleFilePasswordConfirm = useCallback(async (password: string) => {
-    if (pendingFiles.length === 0) return;
+  const handleFilePasswordConfirm = useCallback(
+    async (password: string) => {
+      if (pendingFiles.length === 0) return;
 
-    const current = pendingFiles[0];
-    setIsDecryptingFile(true);
-    setFilePasswordError('');
+      const current = pendingFiles[0];
+      setIsDecryptingFile(true);
+      setFilePasswordError('');
 
-    try {
-      const thumbnails = await renderPdfThumbnails(current.file, current.fileIndex, 0.5, password);
-      // Wait for the state update or just use the current present
-      setHistory(prev => pushState(prev, [...prev.present, ...thumbnails]));
-      setPendingFiles(prev => prev.slice(1));
-    } catch (err: any) {
-      if (err.name === 'PasswordException') {
-        setFilePasswordError('Incorrect password. Please try again.');
-      } else {
-        setFilePasswordError('Failed to load the file. It may be corrupt.');
+      try {
+        const thumbnails = await renderPdfThumbnails(
+          current.file,
+          current.fileIndex,
+          0.5,
+          password
+        );
+        // Wait for the state update or just use the current present
+        setHistory(prev => pushState(prev, [...prev.present, ...thumbnails]));
+        setPendingFiles(prev => prev.slice(1));
+      } catch (err: any) {
+        if (err.name === 'PasswordException') {
+          setFilePasswordError('Incorrect password. Please try again.');
+        } else {
+          setFilePasswordError('Failed to load the file. It may be corrupt.');
+        }
+      } finally {
+        setIsDecryptingFile(false);
       }
-    } finally {
-      setIsDecryptingFile(false);
-    }
-  }, [pendingFiles]);
+    },
+    [pendingFiles]
+  );
 
   const handleFilePasswordClose = useCallback(() => {
     setPendingFiles(prev => prev.slice(1));
@@ -166,8 +174,8 @@ function App() {
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
-        const oldIndex = pages.findIndex((p) => p.id === active.id);
-        const newIndex = pages.findIndex((p) => p.id === over.id);
+        const oldIndex = pages.findIndex(p => p.id === active.id);
+        const newIndex = pages.findIndex(p => p.id === over.id);
         const newPages = arrayMove(pages, oldIndex, newIndex);
         updatePages(newPages);
       }
@@ -178,7 +186,7 @@ function App() {
   // Rotate a page by 90°
   const handleRotate = useCallback(
     (id: string) => {
-      const newPages = pages.map((p) =>
+      const newPages = pages.map(p =>
         p.id === id ? { ...p, rotation: (p.rotation + 90) % 360 } : p
       );
       updatePages(newPages);
@@ -189,7 +197,7 @@ function App() {
   // Delete a page
   const handleDelete = useCallback(
     (id: string) => {
-      const newPages = pages.filter((p) => p.id !== id);
+      const newPages = pages.filter(p => p.id !== id);
       updatePages(newPages);
     },
     [pages, updatePages]
@@ -198,9 +206,7 @@ function App() {
   // Toggle page selection
   const handleToggleSelect = useCallback(
     (id: string) => {
-      const newPages = pages.map((p) =>
-        p.id === id ? { ...p, selected: !p.selected } : p
-      );
+      const newPages = pages.map(p => (p.id === id ? { ...p, selected: !p.selected } : p));
       updatePages(newPages);
     },
     [pages, updatePages]
@@ -245,84 +251,84 @@ function App() {
 
   // Toggle dark mode
   const handleToggleTheme = useCallback(() => {
-    setIsDarkMode((prev) => {
+    setIsDarkMode(prev => {
       const next = !prev;
-      document.documentElement.setAttribute(
-        'data-theme',
-        next ? 'dark' : 'light'
-      );
+      document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
       return next;
     });
   }, []);
 
   // Process button handler
-  const handleProcess = useCallback(async (password?: string) => {
-    if (pages.length === 0) return;
+  const handleProcess = useCallback(
+    async (password?: string) => {
+      if (pages.length === 0) return;
 
-    setIsProcessing(true);
-    setProgress(0);
-
-    try {
-      switch (activeTool) {
-        case 'merge':
-        case 'rearrange':
-        case 'imageToPdf':
-        case 'compress': {
-          let data = activeTool === 'compress'
-            ? await compressPdf(pages, compressionQuality / 100, setProgress)
-            : await buildPdf(pages, setProgress);
-            
-          if (password) {
-            data = await lockPdfBytes(data, password);
-          }
-
-          const filename = activeTool === 'compress'
-            ? 'compressed.pdf'
-            : activeTool === 'merge'
-              ? 'merged.pdf'
-              : activeTool === 'imageToPdf'
-                ? 'converted_images.pdf'
-                : 'rearranged.pdf';
-          downloadFile(data, filename);
-          break;
-        }
-
-        case 'split': {
-          let ranges: number[][];
-          if (splitMode === 'individual') {
-            ranges = pages.map((_, i) => [i]);
-          } else {
-            ranges = parseRanges(splitRange, pages.length);
-            if (ranges.length === 0) {
-              alert('Please enter valid page ranges (e.g., "1-3, 4-6")');
-              setIsProcessing(false);
-              return;
-            }
-          }
-          const files = await splitPdf(pages, ranges, setProgress);
-          await downloadMultipleFiles(files);
-          break;
-        }
-
-
-
-        case 'convert': {
-          if (convertFormat === 'txt') {
-            await convertPdfToText(pages, setProgress);
-          } else {
-            await convertPdfToImages(pages, convertFormat, setProgress);
-          }
-          break;
-        }
-      }
-    } catch (err) {
-      console.error('Processing error:', err);
-      alert('An error occurred during processing. Please try again.');
-    } finally {
-      setIsProcessing(false);
+      setIsProcessing(true);
       setProgress(0);
-    }
-  }, [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, updatePages]);
+
+      try {
+        switch (activeTool) {
+          case 'merge':
+          case 'rearrange':
+          case 'imageToPdf':
+          case 'compress': {
+            let data =
+              activeTool === 'compress'
+                ? await compressPdf(pages, compressionQuality / 100, setProgress)
+                : await buildPdf(pages, setProgress);
+
+            if (password) {
+              data = await lockPdfBytes(data, password);
+            }
+
+            const filename =
+              activeTool === 'compress'
+                ? 'compressed.pdf'
+                : activeTool === 'merge'
+                  ? 'merged.pdf'
+                  : activeTool === 'imageToPdf'
+                    ? 'converted_images.pdf'
+                    : 'rearranged.pdf';
+            downloadFile(data, filename);
+            break;
+          }
+
+          case 'split': {
+            let ranges: number[][];
+            if (splitMode === 'individual') {
+              ranges = pages.map((_, i) => [i]);
+            } else {
+              ranges = parseRanges(splitRange, pages.length);
+              if (ranges.length === 0) {
+                alert('Please enter valid page ranges (e.g., "1-3, 4-6")');
+                setIsProcessing(false);
+                return;
+              }
+            }
+            const files = await splitPdf(pages, ranges, setProgress);
+            await downloadMultipleFiles(files);
+            break;
+          }
+
+          case 'convert': {
+            if (convertFormat === 'txt') {
+              await convertPdfToText(pages, setProgress);
+            } else {
+              await convertPdfToImages(pages, convertFormat, setProgress);
+            }
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('Processing error:', err);
+        alert('An error occurred during processing. Please try again.');
+      } finally {
+        setIsProcessing(false);
+        setProgress(0);
+      }
+    },
+    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, updatePages]
+  );
 
   // Process button handler – for merge/rearrange, show password modal first
   const handleProcessClick = useCallback(() => {
@@ -339,10 +345,13 @@ function App() {
   }, [pages.length, activeTool, handleProcess]);
 
   // Handle password-protected download
-  const handlePasswordConfirm = useCallback(async (password: string) => {
-    setShowPasswordModal(false);
-    handleProcess(password);
-  }, [handleProcess]);
+  const handlePasswordConfirm = useCallback(
+    async (password: string) => {
+      setShowPasswordModal(false);
+      handleProcess(password);
+    },
+    [handleProcess]
+  );
 
   // Handle download without password
   const handlePasswordSkip = useCallback(() => {
@@ -356,7 +365,7 @@ function App() {
     // Optionally, we could load the unlocked PDF into the workspace here.
   }, []);
 
-  const selectedCount = pages.filter((p) => p.selected).length;
+  const selectedCount = pages.filter(p => p.selected).length;
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -391,9 +400,7 @@ function App() {
       dragCounter.current = 0;
 
       const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-      const files = Array.from(e.dataTransfer.files).filter(
-        (f) => validTypes.includes(f.type)
-      );
+      const files = Array.from(e.dataTransfer.files).filter(f => validTypes.includes(f.type));
       if (files.length > 0) {
         handleFilesSelected(files);
       }
@@ -402,13 +409,14 @@ function App() {
   );
 
   return (
-    <div 
+    <div
       className="app-layout"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <Analytics />
       <Sidebar
         activeTool={activeTool}
         onSelectTool={setActiveTool}
@@ -475,14 +483,10 @@ function App() {
       />
 
       {/* Loading overlay for initial file upload */}
-      {isLoading && (
-        <ProgressOverlay progress={50} message="Loading PDF pages..." />
-      )}
+      {isLoading && <ProgressOverlay progress={50} message="Loading PDF pages..." />}
 
       {/* Processing overlay */}
-      {isProcessing && (
-        <ProgressOverlay progress={progress} />
-      )}
+      {isProcessing && <ProgressOverlay progress={progress} />}
 
       {/* Global Drag Overlay */}
       {isDraggingFile && (
