@@ -23,10 +23,11 @@ export interface PageInfo {
 export async function renderPdfThumbnails(
   file: File,
   fileIndex: number,
-  scale: number = 0.5
+  scale: number = 0.5,
+  password?: string
 ): Promise<PageInfo[]> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, password }).promise;
   const pages: PageInfo[] = [];
 
   for (let i = 0; i < pdf.numPages; i++) {

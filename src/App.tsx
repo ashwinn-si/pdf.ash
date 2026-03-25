@@ -8,6 +8,7 @@ import Workspace from './components/Workspace';
 import BottomBar from './components/BottomBar';
 import ProgressOverlay from './components/ProgressOverlay';
 import PasswordModal from './components/PasswordModal';
+import FilePasswordModal from './components/FilePasswordModal';
 import {
   storeFileBuffer,
   buildPdf,
@@ -19,6 +20,7 @@ import {
   convertPdfToImages,
   convertPdfToText,
   imageToPdfBuffer,
+  lockPdfBytes,
 } from './utils/pdfOperations';
 import {
   createInitialHistory,
@@ -50,6 +52,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; fileIndex: number }[]>([]);
+  const [filePasswordError, setFilePasswordError] = useState('');
+  const [isDecryptingFile, setIsDecryptingFile] = useState(false);
 
   const fileCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +86,7 @@ function App() {
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
       setIsLoading(true);
+      const lockedFiles: { file: File; fileIndex: number }[] = [];
       try {
         const newPages: PageInfo[] = [...pages];
 
@@ -99,11 +105,24 @@ function App() {
           // Render thumbnails from the PDF buffer (whether originally PDF or converted from image)
           const blob = new Blob([buffer], { type: 'application/pdf' });
           const pdfFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".pdf", { type: 'application/pdf' });
-          const thumbnails = await renderPdfThumbnails(pdfFile, fileIndex);
-          newPages.push(...thumbnails);
+          
+          try {
+            const thumbnails = await renderPdfThumbnails(pdfFile, fileIndex);
+            newPages.push(...thumbnails);
+          } catch (err: any) {
+            if (err.name === 'PasswordException') {
+              lockedFiles.push({ file: pdfFile, fileIndex });
+            } else {
+              throw err;
+            }
+          }
         }
 
         updatePages(newPages);
+
+        if (lockedFiles.length > 0) {
+          setPendingFiles(prev => [...prev, ...lockedFiles]);
+        }
       } catch (err) {
         console.error('Error loading PDFs:', err);
         alert('Error loading PDF files. Please try again.');
@@ -113,6 +132,34 @@ function App() {
     },
     [pages, updatePages]
   );
+
+  const handleFilePasswordConfirm = useCallback(async (password: string) => {
+    if (pendingFiles.length === 0) return;
+
+    const current = pendingFiles[0];
+    setIsDecryptingFile(true);
+    setFilePasswordError('');
+
+    try {
+      const thumbnails = await renderPdfThumbnails(current.file, current.fileIndex, 0.5, password);
+      // Wait for the state update or just use the current present
+      setHistory(prev => pushState(prev, [...prev.present, ...thumbnails]));
+      setPendingFiles(prev => prev.slice(1));
+    } catch (err: any) {
+      if (err.name === 'PasswordException') {
+        setFilePasswordError('Incorrect password. Please try again.');
+      } else {
+        setFilePasswordError('Failed to load the file. It may be corrupt.');
+      }
+    } finally {
+      setIsDecryptingFile(false);
+    }
+  }, [pendingFiles]);
+
+  const handleFilePasswordClose = useCallback(() => {
+    setPendingFiles(prev => prev.slice(1));
+    setFilePasswordError('');
+  }, []);
 
   // Drag end handler for reordering
   const handleReorder = useCallback(
@@ -208,9 +255,8 @@ function App() {
     });
   }, []);
 
-  // Process button handler – for merge/rearrange, show password modal first
   // Process button handler
-  const handleProcess = useCallback(async () => {
+  const handleProcess = useCallback(async (password?: string) => {
     if (pages.length === 0) return;
 
     setIsProcessing(true);
@@ -222,9 +268,14 @@ function App() {
         case 'rearrange':
         case 'imageToPdf':
         case 'compress': {
-          const data = activeTool === 'compress'
+          let data = activeTool === 'compress'
             ? await compressPdf(pages, compressionQuality / 100, setProgress)
             : await buildPdf(pages, setProgress);
+            
+          if (password) {
+            data = await lockPdfBytes(data, password);
+          }
+
           const filename = activeTool === 'compress'
             ? 'compressed.pdf'
             : activeTool === 'merge'
@@ -288,13 +339,9 @@ function App() {
   }, [pages.length, activeTool, handleProcess]);
 
   // Handle password-protected download
-  const handlePasswordConfirm = useCallback(async (_password: string) => {
+  const handlePasswordConfirm = useCallback(async (password: string) => {
     setShowPasswordModal(false);
-    // pdf-lib doesn't natively support encryption, so we build the PDF
-    // and inform the user. For full encryption, a server-side solution
-    // or a specialized library would be needed.
-    // For now, we proceed with normal export.
-    handleProcess();
+    handleProcess(password);
   }, [handleProcess]);
 
   // Handle download without password
@@ -456,6 +503,15 @@ function App() {
         onConfirm={handlePasswordConfirm}
         onSkip={handlePasswordSkip}
         isProcessing={isProcessing}
+      />
+
+      <FilePasswordModal
+        isOpen={pendingFiles.length > 0}
+        fileName={pendingFiles[0]?.file.name || ''}
+        onClose={handleFilePasswordClose}
+        onConfirm={handleFilePasswordConfirm}
+        isProcessing={isDecryptingFile}
+        error={filePasswordError}
       />
     </div>
   );

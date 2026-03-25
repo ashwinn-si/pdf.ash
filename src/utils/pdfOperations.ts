@@ -1,4 +1,5 @@
 import { PDFDocument, degrees } from 'pdf-lib';
+import { encryptPDF } from '@pdfsmaller/pdf-encrypt-lite';
 import type { PageInfo } from './pdfRenderer';
 
 /**
@@ -382,4 +383,14 @@ export async function convertPdfToText(
 
   const blob = new Blob([fullText], { type: 'text/plain' });
   downloadBlob(blob, 'extracted_text.txt');
+}
+
+/**
+ * Encrypt a PDF Uint8Array with a password.
+ */
+export async function lockPdfBytes(
+  pdfBytes: Uint8Array,
+  password: string
+): Promise<Uint8Array> {
+  return await encryptPDF(pdfBytes, password);
 }

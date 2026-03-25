@@ -40,53 +40,56 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
     setSuccess(false);
 
     try {
-      const pdfjsLib = await import('pdfjs-dist');
-
+      // Import qpdf wasm
+      const createQPDF = (await import('qpdf-wasm-esm-embedded')).default;
+      
       const arrayBuffer = await file.arrayBuffer();
-
-      // Try opening with the given password
-      const pdfDoc = await pdfjsLib.getDocument({
-        data: arrayBuffer,
-        password: password,
-      }).promise;
-
-      // Now rebuild the PDF without encryption using pdf-lib
-      const { PDFDocument } = await import('pdf-lib');
-      const newPdf = await PDFDocument.create();
-
-      // We need to load the original with ignoreEncryption to copy pages
-      const sourcePdf = await PDFDocument.load(arrayBuffer, {
-        ignoreEncryption: true,
+      const inputBytes = new Uint8Array(arrayBuffer);
+      
+      // Initialize QPDF module
+      const qpdf: any = await createQPDF({
+        print: (text: string) => console.log('QPDF:', text),
+        printErr: (text: string) => console.error('QPDF Error:', text),
       });
 
-      const pageIndices = Array.from({ length: pdfDoc.numPages }, (_, i) => i);
-      const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices);
-      copiedPages.forEach((page) => newPdf.addPage(page));
+      // Write to virtual filesystem
+      qpdf.FS.writeFile('input.pdf', inputBytes);
+      
+      try {
+        // Execute qpdf command
+        qpdf.callMain([
+          `--password=${password}`,
+          '--decrypt',
+          'input.pdf',
+          'output.pdf'
+        ]);
+        
+        // Read decrypted file
+        const outputBytes = qpdf.FS.readFile('output.pdf');
+        const unlockedBuffer = outputBytes.buffer as ArrayBuffer;
 
-      const unlockedBytes = await newPdf.save();
-      const unlockedBuffer = unlockedBytes.buffer as ArrayBuffer;
+        setSuccess(true);
 
-      setSuccess(true);
+        // Trigger download
+        const blob = new Blob([outputBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name.replace('.pdf', '_unlocked.pdf');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-      // Trigger download
-      const blob = new Blob([unlockedBytes as BlobPart], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name.replace('.pdf', '_unlocked.pdf');
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      onUnlocked(unlockedBuffer, file.name);
+        onUnlocked(unlockedBuffer, file.name);
+      } catch (cmdErr) {
+        console.error('QPDF command error:', cmdErr);
+        // If decryption fails, the output file won't exist or qpdf will throw
+        setError('Incorrect password or failed to decrypt. Please try again.');
+      }
     } catch (err: any) {
       console.error('Unlock error:', err);
-      if (err.name === 'PasswordException' || err.message?.includes('password')) {
-        setError('Incorrect password. Please try again.');
-      } else {
-        setError('Failed to unlock the PDF. It may not be password-protected or the file is corrupted.');
-      }
+      setError('An error occurred during decryption. The file may be corrupt or unsupported.');
     } finally {
       setIsProcessing(false);
     }
