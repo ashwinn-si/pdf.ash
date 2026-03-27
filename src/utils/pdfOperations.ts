@@ -287,6 +287,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 export async function convertPdfToImages(
   pages: PageInfo[],
   format: 'png' | 'jpg',
+  customFilename?: string,
   onProgress?: (progress: number) => void
 ): Promise<void> {
   const pdfjsLib = await import('pdfjs-dist');
@@ -330,7 +331,8 @@ export async function convertPdfToImages(
       canvas.toBlob((b) => resolve(b!), mimeType, quality);
     });
 
-    downloadBlob(blob, `page_${i + 1}.${format}`);
+    const prefix = customFilename?.trim() || 'page';
+    downloadBlob(blob, `${prefix}_${i + 1}.${format}`);
 
     if (onProgress) {
       onProgress(Math.round(((i + 1) / pages.length) * 100));
@@ -348,6 +350,7 @@ export async function convertPdfToImages(
  */
 export async function convertPdfToText(
   pages: PageInfo[],
+  filename: string = 'extracted_text.txt',
   onProgress?: (progress: number) => void
 ): Promise<void> {
   const pdfjsLib = await import('pdfjs-dist');
@@ -382,7 +385,7 @@ export async function convertPdfToText(
   }
 
   const blob = new Blob([fullText], { type: 'text/plain' });
-  downloadBlob(blob, 'extracted_text.txt');
+  downloadBlob(blob, filename);
 }
 
 /**

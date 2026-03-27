@@ -133,6 +133,33 @@ function App() {
     [pages, updatePages]
   );
 
+  // Clipboard paste handler
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file && validTypes.includes(file.type)) {
+            files.push(file);
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        handleFilesSelected(files);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handleFilesSelected]);
+
   const handleFilePasswordConfirm = useCallback(
     async (password: string) => {
       if (pendingFiles.length === 0) return;
@@ -257,6 +284,7 @@ function App() {
       return next;
     });
   }, []);
+  const [customFilename, setCustomFilename] = useState('');
 
   // Process button handler
   const handleProcess = useCallback(
@@ -281,14 +309,21 @@ function App() {
               data = await lockPdfBytes(data, password);
             }
 
-            const filename =
-              activeTool === 'compress'
-                ? 'compressed.pdf'
-                : activeTool === 'merge'
-                  ? 'merged.pdf'
-                  : activeTool === 'imageToPdf'
-                    ? 'converted_images.pdf'
-                    : 'rearranged.pdf';
+            let filename = customFilename.trim();
+            if (filename) {
+              if (!filename.toLowerCase().endsWith('.pdf')) {
+                filename += '.pdf';
+              }
+            } else {
+              filename =
+                activeTool === 'compress'
+                  ? 'compressed.pdf'
+                  : activeTool === 'merge'
+                    ? 'merged.pdf'
+                    : activeTool === 'imageToPdf'
+                      ? 'converted_images.pdf'
+                      : 'rearranged.pdf';
+            }
             downloadFile(data, filename);
             break;
           }
@@ -306,15 +341,25 @@ function App() {
               }
             }
             const files = await splitPdf(pages, ranges, setProgress);
-            await downloadMultipleFiles(files);
+            // If custom filename is provided, use it as a prefix for split files
+            const prefix = customFilename.trim() || 'split';
+            const renamedFiles = files.map((f, i) => ({
+              ...f,
+              name: customFilename.trim() ? `${prefix}_${i + 1}.pdf` : f.name
+            }));
+            await downloadMultipleFiles(renamedFiles);
             break;
           }
 
           case 'convert': {
+            const filenameValue = customFilename.trim();
             if (convertFormat === 'txt') {
-              await convertPdfToText(pages, setProgress);
+              const txtFilename = filenameValue
+                ? (filenameValue.toLowerCase().endsWith('.txt') ? filenameValue : `${filenameValue}.txt`)
+                : 'extracted_text.txt';
+              await convertPdfToText(pages, txtFilename, setProgress);
             } else {
-              await convertPdfToImages(pages, convertFormat, setProgress);
+              await convertPdfToImages(pages, convertFormat, filenameValue, setProgress);
             }
             break;
           }
@@ -327,7 +372,7 @@ function App() {
         setProgress(0);
       }
     },
-    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, updatePages]
+    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, customFilename]
   );
 
   // Process button handler – for merge/rearrange, show password modal first
@@ -437,6 +482,8 @@ function App() {
           isDarkMode={isDarkMode}
           onToggleTheme={handleToggleTheme}
           hasPages={pages.length > 0}
+          customFilename={customFilename}
+          onFilenameChange={setCustomFilename}
         />
 
         <Workspace
