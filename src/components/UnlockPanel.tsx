@@ -78,8 +78,10 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
         a.download = file.name.replace('.pdf', '_unlocked.pdf');
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 10000);
 
         onUnlocked(unlockedBuffer, file.name);
       } catch (cmdErr) {

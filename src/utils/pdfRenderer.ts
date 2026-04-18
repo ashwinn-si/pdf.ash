@@ -39,7 +39,7 @@ export async function renderPdfThumbnails(
     canvas.height = viewport.height;
 
     const ctx = canvas.getContext('2d')!;
-    await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
 
     pages.push({
       id: `${fileIndex}-${i}-${Date.now()}`,

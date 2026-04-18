@@ -22,6 +22,8 @@ import {
   convertPdfToText,
   imageToPdfBuffer,
   lockPdfBytes,
+  isValidFile,
+  isImageFile,
 } from './utils/pdfOperations';
 import {
   createInitialHistory,
@@ -92,7 +94,7 @@ function App() {
           const fileIndex = fileCountRef.current++;
 
           let buffer: ArrayBuffer;
-          if (file.type.startsWith('image/')) {
+          if (isImageFile(file)) {
             buffer = await imageToPdfBuffer(file);
           } else {
             buffer = await file.arrayBuffer();
@@ -140,12 +142,11 @@ function App() {
       if (!items) return;
 
       const files: File[] = [];
-      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
       for (let i = 0; i < items.length; i++) {
         if (items[i].kind === 'file') {
           const file = items[i].getAsFile();
-          if (file && validTypes.includes(file.type)) {
+          if (file && isValidFile(file)) {
             files.push(file);
           }
         }
@@ -444,8 +445,7 @@ function App() {
       setIsDraggingFile(false);
       dragCounter.current = 0;
 
-      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-      const files = Array.from(e.dataTransfer.files).filter(f => validTypes.includes(f.type));
+      const files = Array.from(e.dataTransfer.files).filter(isValidFile);
       if (files.length > 0) {
         handleFilesSelected(files);
       }

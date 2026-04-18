@@ -24,7 +24,30 @@ export async function imageToPdfBuffer(imageFile: File): Promise<ArrayBuffer> {
   page.drawImage(image, { x: 0, y: 0, width, height });
 
   const pdfBytes = await pdfDoc.save();
-  return pdfBytes.buffer as ArrayBuffer;
+  return pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+}
+
+/**
+ * Check if a file is a valid PDF or image by MIME type or extension fallback.
+ * On Windows, dragged files often have an empty type string — extension check is the fallback.
+ */
+export function isValidFile(file: File): boolean {
+  const validMimes = ['application/pdf', 'image/png', 'image/jpeg'];
+  const validExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+  const name = file.name.toLowerCase();
+  return validMimes.includes(file.type) ||
+    (file.type === '' && validExts.some(ext => name.endsWith(ext)));
+}
+
+/**
+ * Check if a file should be treated as an image (not a PDF).
+ */
+export function isImageFile(file: File): boolean {
+  const imageMimes = ['image/png', 'image/jpeg'];
+  const imageExts = ['.jpg', '.jpeg', '.png'];
+  const name = file.name.toLowerCase();
+  return imageMimes.includes(file.type) ||
+    (file.type === '' && imageExts.some(ext => name.endsWith(ext)));
 }
 
 /**
@@ -172,7 +195,7 @@ export async function compressPdf(
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    await pdfPage.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+    await pdfPage.render({ canvasContext: ctx, viewport, canvas }).promise;
 
     // Compress to JPEG with user-specified quality
     const blob = await new Promise<Blob | null>((resolve) => {
@@ -244,7 +267,7 @@ export function downloadFile(data: Uint8Array, filename: string) {
   setTimeout(() => {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-  }, 250);
+  }, 10000);
 }
 
 /**
@@ -277,7 +300,7 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-  }, 250);
+  }, 10000);
 }
 
 /**
@@ -322,7 +345,7 @@ export async function convertPdfToImages(
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    await pdfPage.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+    await pdfPage.render({ canvasContext: ctx, viewport, canvas }).promise;
 
     const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
     const quality = format === 'jpg' ? 0.92 : undefined;

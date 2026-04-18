@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, FileText } from 'lucide-react';
+import { isValidFile } from '../utils/pdfOperations';
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -13,16 +14,20 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    dragCounter.current++;
-    setIsDragging(true);
+    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      dragCounter.current++;
+      setIsDragging(true);
+    }
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
+    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      dragCounter.current--;
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
     }
   }, []);
 
@@ -38,10 +43,7 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       setIsDragging(false);
       dragCounter.current = 0;
 
-      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-      const files = Array.from(e.dataTransfer.files).filter(
-        (f) => validTypes.includes(f.type)
-      );
+      const files = Array.from(e.dataTransfer.files).filter(isValidFile);
       if (files.length > 0) {
         onFilesSelected(files);
       }
