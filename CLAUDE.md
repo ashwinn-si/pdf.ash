@@ -26,7 +26,7 @@ Single-page React (TypeScript) app. All PDF processing is **fully client-side** 
 ### Data flow
 
 1. Files dropped/selected → `handleFilesSelected` in App.tsx
-2. Images are first converted to PDF via `imageToPdfBuffer` (pdf-lib)
+2. Non-PDF inputs are converted to a PDF buffer first: images via `imageToPdfBuffer`, Markdown (`.md`/`.markdown`) via `markdownToPdfBuffer` (both pdf-lib; the latter is a hand-rolled Markdown parser + paginated text layout, since pdf-lib has no rich-text renderer)
 3. Buffer stored in module-level map via `storeFileBuffer(fileIndex, buffer)`
 4. `renderPdfThumbnails` (pdfjs-dist) renders canvas thumbnails → `PageInfo[]`
 5. Pages appended to history present state
@@ -48,7 +48,8 @@ Single-page React (TypeScript) app. All PDF processing is **fully client-side** 
 | File | Role |
 |------|------|
 | `src/App.tsx` | All state, event handlers, layout |
-| `src/utils/pdfOperations.ts` | All PDF operations + file buffer store |
+| `src/utils/pdfOperations.ts` | All PDF operations + file buffer store + file-type checks (`isValidFile`/`isImageFile`/`isMarkdownFile`) |
+| `src/utils/markdownToPdf.ts` | Markdown → PDF parser and paginated renderer |
 | `src/utils/pdfRenderer.ts` | Thumbnail rendering via pdfjs-dist |
 | `src/utils/historyManager.ts` | Immutable undo/redo stack |
 | `src/utils/analytics.ts` | Vercel Analytics wrapper |

@@ -75,7 +75,7 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.md,.markdown"
         multiple
         onChange={handleFileInput}
         style={{ display: 'none' }}
@@ -100,7 +100,7 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       </button>
 
       <div className="upload-zone-formats">
-        Supports .pdf, .jpg, .jpeg, .png files • Multiple files allowed
+        Supports .pdf, .jpg, .jpeg, .png, .md files • Multiple files allowed
       </div>
     </div>
   );

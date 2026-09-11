@@ -24,7 +24,9 @@ import {
   lockPdfBytes,
   isValidFile,
   isImageFile,
+  isMarkdownFile,
 } from './utils/pdfOperations';
+import { markdownToPdfBuffer } from './utils/markdownToPdf';
 import {
   createInitialHistory,
   pushState,
@@ -96,6 +98,8 @@ function App() {
           let buffer: ArrayBuffer;
           if (isImageFile(file)) {
             buffer = await imageToPdfBuffer(file);
+          } else if (isMarkdownFile(file)) {
+            buffer = await markdownToPdfBuffer(file);
           } else {
             buffer = await file.arrayBuffer();
           }
@@ -322,7 +326,7 @@ function App() {
                   : activeTool === 'merge'
                     ? 'merged.pdf'
                     : activeTool === 'imageToPdf'
-                      ? 'converted_images.pdf'
+                      ? 'converted.pdf'
                       : 'rearranged.pdf';
             }
             downloadFile(data, filename);
@@ -523,7 +527,7 @@ function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.md,.markdown"
         multiple
         onChange={handleFileInputChange}
         style={{ display: 'none' }}

@@ -28,15 +28,17 @@ export async function imageToPdfBuffer(imageFile: File): Promise<ArrayBuffer> {
 }
 
 /**
- * Check if a file is a valid PDF or image by MIME type or extension fallback.
- * On Windows, dragged files often have an empty type string — extension check is the fallback.
+ * Check if a file is a valid PDF, image, or Markdown file by MIME type or
+ * extension fallback. Extension is always checked regardless of the reported
+ * type — not just when it's empty — because .md files in particular get
+ * reported with inconsistent or missing MIME types across browsers/OSes
+ * (and on Windows, dragged files of any kind often have an empty type).
  */
 export function isValidFile(file: File): boolean {
-  const validMimes = ['application/pdf', 'image/png', 'image/jpeg'];
-  const validExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+  const validMimes = ['application/pdf', 'image/png', 'image/jpeg', 'text/markdown', 'text/x-markdown'];
+  const validExts = ['.pdf', '.jpg', '.jpeg', '.png', '.md', '.markdown'];
   const name = file.name.toLowerCase();
-  return validMimes.includes(file.type) ||
-    (file.type === '' && validExts.some(ext => name.endsWith(ext)));
+  return validMimes.includes(file.type) || validExts.some(ext => name.endsWith(ext));
 }
 
 /**
@@ -46,8 +48,17 @@ export function isImageFile(file: File): boolean {
   const imageMimes = ['image/png', 'image/jpeg'];
   const imageExts = ['.jpg', '.jpeg', '.png'];
   const name = file.name.toLowerCase();
-  return imageMimes.includes(file.type) ||
-    (file.type === '' && imageExts.some(ext => name.endsWith(ext)));
+  return imageMimes.includes(file.type) || imageExts.some(ext => name.endsWith(ext));
+}
+
+/**
+ * Check if a file should be treated as Markdown (not a PDF).
+ */
+export function isMarkdownFile(file: File): boolean {
+  const markdownMimes = ['text/markdown', 'text/x-markdown'];
+  const markdownExts = ['.md', '.markdown'];
+  const name = file.name.toLowerCase();
+  return markdownMimes.includes(file.type) || markdownExts.some(ext => name.endsWith(ext));
 }
 
 /**

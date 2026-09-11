@@ -28,7 +28,7 @@ const tools: { id: Tool; label: string; icon: React.ReactNode; description: stri
   { id: 'split', label: 'Split', icon: <Scissors size={18} />, description: 'Split into parts' },
   { id: 'compress', label: 'Compress', icon: <Minimize2 size={18} />, description: 'Reduce file size' },
   { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },
-  { id: 'imageToPdf', label: 'Image to PDF', icon: <ImagePlus size={18} />, description: 'Convert images to PDF' },
+  { id: 'imageToPdf', label: 'Convert to PDF', icon: <ImagePlus size={18} />, description: 'Convert images or Markdown files to PDF' },
   { id: 'unlock', label: 'Unlock', icon: <LockOpen size={18} />, description: 'Remove password from PDF' },
 ];
 
