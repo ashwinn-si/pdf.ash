@@ -2231,3 +2231,599 @@ button:focus-visible {
   letter-spacing: 0.8px;
   color: var(--color-text-secondary);
 }
+
+/* === Edit tool: annotation toolbar === */
+.workspace-editor {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.pdf-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.annotation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.annotation-toolbar-tools {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.annotation-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 68px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.annotation-tool:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.annotation-tool.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.annotation-toolbar-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+/* When the row is editing a selected mark rather than tool defaults, say so —
+   otherwise it is not obvious what a slider drag is about to change. */
+.annotation-toolbar-options.for-selection {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-selection);
+  box-shadow: inset 0 0 0 1px var(--color-primary-border);
+}
+
+.annotation-options-scope {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.annotation-options-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.annotation-textstyle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.annotation-font-select {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.annotation-style-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.annotation-style-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary-border);
+}
+
+.annotation-style-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.annotation-swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.annotation-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.annotation-swatch:hover {
+  transform: scale(1.1);
+}
+
+.annotation-swatch.active {
+  border-color: var(--color-text);
+  transform: scale(1.12);
+}
+
+.annotation-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.annotation-size input[type='range'] {
+  width: 96px;
+}
+
+.annotation-size output {
+  min-width: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+/* === Edit tool: page rail + stage === */
+.pdf-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-editor-rail {
+  width: 104px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface-sunken);
+  border-right: 1px solid var(--color-border);
+}
+
+.pdf-editor-rail-item {
+  position: relative;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  transition: border-color var(--transition-fast);
+}
+
+.pdf-editor-rail-item img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.pdf-editor-rail-item:hover {
+  border-color: var(--color-primary-border);
+}
+
+.pdf-editor-rail-item.active {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.pdf-editor-rail-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+
+.pdf-editor-stage {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 24px 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.pdf-editor-pagebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.pdf-editor-navbtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.pdf-editor-navbtn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.pdf-editor-navbtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pdf-editor-pagelabel {
+  min-width: 110px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-editor-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.pdf-editor-message.error {
+  color: var(--color-danger, #dc2626);
+}
+
+.pdf-editor-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 520px;
+}
+
+.pdf-editor-page {
+  position: relative;
+  box-shadow: var(--shadow-2);
+  border-radius: var(--radius-xs);
+  /* The page render is authored on white; keep it white in dark mode too. */
+  background: #fff;
+  line-height: 0;
+}
+
+.pdf-editor-page img {
+  display: block;
+  border-radius: var(--radius-xs);
+  user-select: none;
+}
+
+/* === Edit tool: annotation overlay === */
+.annotation-layer {
+  position: absolute;
+  inset: 0;
+  line-height: normal;
+}
+
+.annotation-svg {
+  display: block;
+  touch-action: none;
+  /* Dragging a mark must never turn into a native text/image selection drag. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.annotation-selection {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.annotation-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  box-shadow: var(--shadow-1);
+}
+
+.annotation-handle.delete:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.annotation-handle.resize {
+  cursor: nwse-resize;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  touch-action: none;
+}
+
+.annotation-text-input {
+  position: absolute;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px dashed var(--color-primary);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.92);
+  font-family: Helvetica, Arial, sans-serif;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+}
+
+/* === Signature modal === */
+.signature-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 24px 0;
+}
+
+.signature-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.signature-tab:hover {
+  color: var(--color-text);
+}
+
+.signature-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.signature-dropzone {
+  width: 100%;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.signature-dropzone:hover,
+.signature-dropzone:focus-within {
+  border-color: var(--color-primary);
+}
+
+/* Visually hidden rather than display:none — a hidden-by-display file input
+   cannot be focused, and Safari will not open a picker for one. */
+.signature-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Signatures are dark ink on transparency, and they will be stamped onto a
+   white page — so preview them against white, never the dark-mode surface,
+   where they would be all but invisible. */
+.signature-preview-img {
+  max-height: 140px;
+  max-width: 100%;
+  object-fit: contain;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.signature-pad-wrap {
+  position: relative;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: hidden;
+}
+
+.signature-pad {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  cursor: crosshair;
+  position: relative;
+  z-index: 1;
+}
+
+.signature-pad-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.signature-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.signature-clear:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.signature-check input[type='checkbox'] {
+  accent-color: var(--color-primary);
+  width: 15px;
+  height: 15px;
+}
+
+.signature-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.signature-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signature-saved-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.signature-saved-use {
+  flex: 1;
+  padding: 8px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  transition: border-color var(--transition-fast);
+}
+
+.signature-saved-use:hover {
+  border-color: var(--color-primary);
+}
+
+.signature-saved-use img {
+  max-height: 48px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.signature-saved-delete {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+.signature-saved-delete:hover {
+  background: var(--color-surface-hover);
+  color: #dc2626;
+}
+
+.signature-error {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .annotation-toolbar {
+    padding: 8px 12px;
+  }
+
+  .annotation-tool {
+    min-width: 56px;
+    padding: 6px;
+    font-size: 10px;
+  }
+
+  .pdf-editor-rail {
+    width: 76px;
+  }
+
+  .pdf-editor-stage {
+    padding: 12px 12px 100px;
+  }
+}
+

@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import type { Annotation } from './annotations';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Use ?url import so Vite emits the worker as a hashed asset — works correctly on all CDN deploys (Vercel, Netlify, etc.)
@@ -13,6 +14,8 @@ export interface PageInfo {
   rotation: number;
   thumbnail: string;
   selected: boolean;
+  /** Marks added with the Edit tool, stamped in at download time. */
+  annotations?: Annotation[];
 }
 
 /**

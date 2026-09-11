@@ -32,6 +32,7 @@ import {
   pushState,
   undo as historyUndo,
   redo as historyRedo,
+  replacePresent,
   canUndo as historyCanUndo,
   canRedo as historyCanRedo,
   type HistoryState,
@@ -41,6 +42,7 @@ import './App.css';
 
 import type { ConvertFormat } from './components/ConvertPanel';
 import { renderPdfThumbnails, type PageInfo } from './utils/pdfRenderer';
+import type { Annotation } from './utils/annotations';
 import { sendAnalytics } from './utils/analytics';
 
 function App() {
@@ -235,6 +237,25 @@ function App() {
     [pages, updatePages]
   );
 
+  // Replace one page's annotations. Continuous gestures (dragging a mark,
+  // typing into a text box) pass commit=false so they don't each become their
+  // own undo step — the editor snapshots once up front via handleCheckpoint.
+  const handleAnnotationsChange = useCallback(
+    (pageId: string, annotations: Annotation[], commit: boolean) => {
+      setHistory(prev => {
+        const next = prev.present.map(p =>
+          p.id === pageId ? { ...p, annotations } : p
+        );
+        return commit ? pushState(prev, next) : replacePresent(prev, next);
+      });
+    },
+    []
+  );
+
+  const handleCheckpoint = useCallback(() => {
+    setHistory(prev => pushState(prev, prev.present));
+  }, []);
+
   // Toggle page selection
   const handleToggleSelect = useCallback(
     (id: string) => {
@@ -303,6 +324,7 @@ function App() {
         switch (activeTool) {
           case 'merge':
           case 'rearrange':
+          case 'edit':
           case 'imageToPdf':
           case 'compress': {
             let data =
@@ -327,7 +349,9 @@ function App() {
                     ? 'merged.pdf'
                     : activeTool === 'imageToPdf'
                       ? 'converted.pdf'
-                      : 'rearranged.pdf';
+                      : activeTool === 'edit'
+                        ? 'edited.pdf'
+                        : 'rearranged.pdf';
             }
             downloadFile(data, filename);
             break;
@@ -385,7 +409,7 @@ function App() {
     if (pages.length === 0) return;
 
     // For merge, rearrange, imageToPdf – offer password protection
-    if (['merge', 'rearrange', 'imageToPdf'].includes(activeTool)) {
+    if (['merge', 'rearrange', 'edit', 'imageToPdf'].includes(activeTool)) {
       setShowPasswordModal(true);
       return;
     }
@@ -509,6 +533,8 @@ function App() {
           onCompressionQualityChange={setCompressionQuality}
           acceptImages={activeTool === 'imageToPdf'}
           onUnlocked={handleUnlocked}
+          onAnnotationsChange={handleAnnotationsChange}
+          onCheckpoint={handleCheckpoint}
         />
 
         {activeTool !== 'unlock' && (

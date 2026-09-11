@@ -10,9 +10,10 @@ import {
   Layers,
   LayoutGrid,
   LockOpen,
+  PenTool,
 } from 'lucide-react';
 
-export type Tool = 'merge' | 'rearrange' | 'split' | 'compress' | 'convert' | 'imageToPdf' | 'unlock';
+export type Tool = 'merge' | 'rearrange' | 'edit' | 'split' | 'compress' | 'convert' | 'imageToPdf' | 'unlock';
 
 interface SidebarProps {
   activeTool: Tool;
@@ -25,6 +26,7 @@ interface SidebarProps {
 const tools: { id: Tool; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'merge', label: 'Merge', icon: <Layers size={18} />, description: 'Merge multiple PDFs' },
   { id: 'rearrange', label: 'Rearrange', icon: <LayoutGrid size={18} />, description: 'Rearrange PDF pages' },
+  { id: 'edit', label: 'Edit', icon: <PenTool size={18} />, description: 'Sign & annotate pages' },
   { id: 'split', label: 'Split', icon: <Scissors size={18} />, description: 'Split into parts' },
   { id: 'compress', label: 'Compress', icon: <Minimize2 size={18} />, description: 'Reduce file size' },
   { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },

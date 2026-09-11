@@ -51,3 +51,20 @@ export function canUndo(history: HistoryState): boolean {
 export function canRedo(history: HistoryState): boolean {
   return history.future.length > 0;
 }
+
+/**
+ * Swap out the present without adding an undo step.
+ *
+ * Used for continuous edits — dragging an annotation, typing into a text box —
+ * where every pointermove or keystroke would otherwise become its own undo
+ * step. Callers snapshot once with `pushState` when the gesture starts, then
+ * stream the intermediate states through here. `future` is still cleared: the
+ * edit invalidates any redo branch just as much as a discrete change does.
+ */
+export function replacePresent(history: HistoryState, newPages: PageInfo[]): HistoryState {
+  return {
+    past: history.past,
+    present: newPages,
+    future: [],
+  };
+}

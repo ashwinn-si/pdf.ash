@@ -1,6 +1,47 @@
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, type PDFFont } from 'pdf-lib';
 import { encryptPDF } from '@pdfsmaller/pdf-encrypt-lite';
 import type { PageInfo } from './pdfRenderer';
+import { stampAnnotations, scaleAnnotation, type FontResolver } from './annotationStamp';
+import type { TextFont } from './annotations';
+
+const STANDARD_FONTS: Record<TextFont, [StandardFonts, StandardFonts, StandardFonts, StandardFonts]> = {
+  // [regular, bold, italic, bold-italic]
+  helvetica: [
+    StandardFonts.Helvetica,
+    StandardFonts.HelveticaBold,
+    StandardFonts.HelveticaOblique,
+    StandardFonts.HelveticaBoldOblique,
+  ],
+  times: [
+    StandardFonts.TimesRoman,
+    StandardFonts.TimesRomanBold,
+    StandardFonts.TimesRomanItalic,
+    StandardFonts.TimesRomanBoldItalic,
+  ],
+  courier: [
+    StandardFonts.Courier,
+    StandardFonts.CourierBold,
+    StandardFonts.CourierOblique,
+    StandardFonts.CourierBoldOblique,
+  ],
+};
+
+/**
+ * One resolver per output document, embedding each base-14 variant at most
+ * once however many annotations ask for it.
+ */
+function makeFontResolver(doc: PDFDocument): FontResolver {
+  const cache = new Map<string, PDFFont>();
+  return async (font, bold, italic) => {
+    const key = `${font}:${bold ? 'b' : ''}${italic ? 'i' : ''}`;
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const variants = STANDARD_FONTS[font] ?? STANDARD_FONTS.helvetica;
+    const embedded = await doc.embedFont(variants[(bold ? 1 : 0) + (italic ? 2 : 0)]);
+    cache.set(key, embedded);
+    return embedded;
+  };
+}
 
 /**
  * Convert an image file (JPG/PNG) into a single-page PDF ArrayBuffer.
@@ -70,6 +111,61 @@ export function storeFileBuffer(fileIndex: number, buffer: ArrayBuffer) {
   fileBuffers.set(fileIndex, buffer);
 }
 
+export function getFileBuffer(fileIndex: number): ArrayBuffer | undefined {
+  return fileBuffers.get(fileIndex);
+}
+
+/**
+ * A page's on-screen rotation: the user's rotations stack on top of whatever
+ * /Rotate the source page already carried (which is also how the thumbnails
+ * render it — pdfjs honours /Rotate, then we CSS-rotate by `page.rotation`).
+ */
+export function effectiveRotation(intrinsic: number, userRotation: number): number {
+  return (((intrinsic + userRotation) % 360) + 360) % 360;
+}
+
+/**
+ * Render one stored page at `scale` with its rotation applied.
+ * Returns the image plus the displayed page box in PDF points, which is the
+ * coordinate space annotations are stored in.
+ */
+export async function renderPageImage(
+  fileIndex: number,
+  pageIndex: number,
+  userRotation: number,
+  scale: number = 1.5
+): Promise<{ url: string; width: number; height: number; pointWidth: number; pointHeight: number }> {
+  const pdfjsLib = await import('pdfjs-dist');
+  const buffer = fileBuffers.get(fileIndex);
+  if (!buffer) throw new Error(`No buffer stored for file ${fileIndex}`);
+
+  // Clone: pdfjs-dist transfers (detaches) the ArrayBuffer it is handed.
+  const doc = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
+  const pdfPage = await doc.getPage(pageIndex + 1);
+
+  const rotation = effectiveRotation(pdfPage.rotate, userRotation);
+  const viewport = pdfPage.getViewport({ scale, rotation });
+  const unscaled = pdfPage.getViewport({ scale: 1, rotation });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.floor(viewport.width));
+  canvas.height = Math.max(1, Math.floor(viewport.height));
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await pdfPage.render({ canvasContext: ctx, viewport, canvas }).promise;
+
+  doc.destroy();
+
+  return {
+    url: canvas.toDataURL('image/jpeg', 0.9),
+    width: canvas.width,
+    height: canvas.height,
+    pointWidth: unscaled.width,
+    pointHeight: unscaled.height,
+  };
+}
+
 export function clearFileBuffers() {
   fileBuffers.clear();
 }
@@ -84,6 +180,7 @@ export async function buildPdf(
 ): Promise<Uint8Array> {
   const outputPdf = await PDFDocument.create();
   const loadedPdfs: Map<number, PDFDocument> = new Map();
+  let fontFor: FontResolver | undefined;
 
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
@@ -99,10 +196,18 @@ export async function buildPdf(
     const [copiedPage] = await outputPdf.copyPages(sourcePdf, [page.pageIndex]);
 
     if (page.rotation !== 0) {
-      copiedPage.setRotation(degrees(page.rotation));
+      // Stack on the source page's own /Rotate, matching what the thumbnails show.
+      copiedPage.setRotation(
+        degrees(effectiveRotation(copiedPage.getRotation().angle, page.rotation))
+      );
     }
 
     outputPdf.addPage(copiedPage);
+
+    if (page.annotations && page.annotations.length > 0) {
+      if (!fontFor) fontFor = makeFontResolver(outputPdf);
+      await stampAnnotations(outputPdf, copiedPage, page.annotations, fontFor);
+    }
 
     if (onProgress) {
       onProgress(Math.round(((i + 1) / pages.length) * 100));
@@ -139,6 +244,7 @@ export async function splitPdf(
   for (let r = 0; r < ranges.length; r++) {
     const range = ranges[r];
     const splitPdf = await PDFDocument.create();
+    let fontFor: FontResolver | undefined;
 
     for (const pageIdx of range) {
       if (pageIdx < 0 || pageIdx >= pages.length) continue;
@@ -146,9 +252,16 @@ export async function splitPdf(
       const sourcePdf = loadedPdfs.get(page.fileIndex)!;
       const [copiedPage] = await splitPdf.copyPages(sourcePdf, [page.pageIndex]);
       if (page.rotation !== 0) {
-        copiedPage.setRotation(degrees(page.rotation));
+        copiedPage.setRotation(
+          degrees(effectiveRotation(copiedPage.getRotation().angle, page.rotation))
+        );
       }
       splitPdf.addPage(copiedPage);
+
+      if (page.annotations && page.annotations.length > 0) {
+        if (!fontFor) fontFor = makeFontResolver(splitPdf);
+        await stampAnnotations(splitPdf, copiedPage, page.annotations, fontFor);
+      }
     }
 
     const data = await splitPdf.save();
@@ -176,6 +289,7 @@ export async function compressPdf(
 ): Promise<Uint8Array> {
   const pdfjsLib = await import('pdfjs-dist');
   const outputPdf = await PDFDocument.create();
+  let fontFor: FontResolver | undefined;
 
   const loadedPdfs: Map<number, any> = new Map();
   for (const page of pages) {
@@ -198,7 +312,10 @@ export async function compressPdf(
     
     // Scale 1.5 offers a balance between maintaining readability and reducing size
     const scale = 1.5;
-    const viewport = pdfPage.getViewport({ scale, rotation: pageInfo.rotation });
+    const viewport = pdfPage.getViewport({
+      scale,
+      rotation: effectiveRotation(pdfPage.rotate, pageInfo.rotation),
+    });
 
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
@@ -223,6 +340,20 @@ export async function compressPdf(
       const { width, height } = compressedImage.scale(1);
       const outputPage = outputPdf.addPage([width, height]);
       outputPage.drawImage(compressedImage, { x: 0, y: 0, width, height });
+
+      if (pageInfo.annotations && pageInfo.annotations.length > 0) {
+        if (!fontFor) fontFor = makeFontResolver(outputPdf);
+        // The rasterized page is already rotation-baked, so annotation
+        // coordinates just need scaling from points to this page's pixel size.
+        const k = width / (viewport.width / scale);
+        outputPage.setRotation(degrees(0));
+        await stampAnnotations(
+          outputPdf,
+          outputPage,
+          pageInfo.annotations.map((a) => scaleAnnotation(a, k)),
+          fontFor
+        );
+      }
     }
 
     if (onProgress) {
@@ -349,7 +480,10 @@ export async function convertPdfToImages(
 
     const pdfPage = await pdfDoc.getPage(pageInfo.pageIndex + 1);
     const scale = 2.0; // High resolution
-    const viewport = pdfPage.getViewport({ scale, rotation: pageInfo.rotation });
+    const viewport = pdfPage.getViewport({
+      scale,
+      rotation: effectiveRotation(pdfPage.rotate, pageInfo.rotation),
+    });
 
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;

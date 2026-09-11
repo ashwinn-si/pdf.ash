@@ -14,6 +14,7 @@ function getActionLabel(tool: Tool): string {
   switch (tool) {
     case 'merge':
     case 'rearrange':
+    case 'edit':
       return 'Download PDF';
     case 'split':
       return 'Split & Download';

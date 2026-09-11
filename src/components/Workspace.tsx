@@ -23,8 +23,10 @@ import SplitPanel from './SplitPanel';
 import ConvertPanel from './ConvertPanel';
 import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
+import PdfEditor from './PdfEditor';
 import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
+import type { Annotation } from '../utils/annotations';
 import type { Tool } from './Sidebar';
 
 interface WorkspaceProps {
@@ -46,6 +48,8 @@ interface WorkspaceProps {
   onCompressionQualityChange: (quality: number) => void;
   acceptImages?: boolean;
   onUnlocked?: (buffer: ArrayBuffer, fileName: string) => void;
+  onAnnotationsChange: (pageId: string, annotations: Annotation[], commit: boolean) => void;
+  onCheckpoint: () => void;
 }
 
 export default function Workspace({
@@ -66,6 +70,8 @@ export default function Workspace({
   compressionQuality,
   onCompressionQualityChange,
   onUnlocked,
+  onAnnotationsChange,
+  onCheckpoint,
 }: WorkspaceProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
@@ -157,6 +163,20 @@ export default function Workspace({
     return (
       <div className="workspace">
         <UploadZone onFilesSelected={onFilesSelected} />
+      </div>
+    );
+  }
+
+  // The Edit tool needs a full-size page to draw on, so it replaces the grid.
+  if (activeTool === 'edit') {
+    return (
+      <div className="workspace workspace-editor">
+        <PdfEditor
+          pages={pages}
+          onRotate={onRotate}
+          onAnnotationsChange={onAnnotationsChange}
+          onCheckpoint={onCheckpoint}
+        />
       </div>
     );
   }
