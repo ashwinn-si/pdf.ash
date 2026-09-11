@@ -260,17 +260,20 @@ button:focus-visible {
 }
 
 .sidebar-logo {
-  padding: 20px 24px;
+  /* Share the topbar's height so the two bottom borders form one unbroken
+     rule across the whole window. */
+  height: var(--topbar-height);
+  padding: 0 12px 0 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-bottom: 1px solid var(--color-border);
   min-width: var(--sidebar-width);
 }
 
 .sidebar.collapsed .sidebar-logo {
   min-width: auto;
-  padding: 20px 0;
+  padding: 0;
   justify-content: center;
 }
 
@@ -413,16 +416,18 @@ button:focus-visible {
   font-size: 20px;
 }
 
+/* Lives in the sidebar header, so collapsing is reachable from the top of the
+   panel rather than the far bottom corner. */
 .sidebar-toggle-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 14px 16px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  border-top: 1px solid var(--color-border);
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
@@ -431,8 +436,14 @@ button:focus-visible {
   background: var(--color-surface-hover);
 }
 
+/* At 72px wide there is no room for the mark and the button side by side, so
+   the collapsed header gives the space to the control. */
+.sidebar.collapsed .sidebar-logo-icon {
+  display: none;
+}
+
 .sidebar.collapsed .sidebar-toggle-btn {
-  justify-content: center;
+  margin: 0 auto;
 }
 
 .sidebar-footer {

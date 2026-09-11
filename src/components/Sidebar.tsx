@@ -45,6 +45,15 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
           <h1>pdf.ash</h1>
           <span>All-in-one editor</span>
         </div>
+        <button
+          className="sidebar-toggle-btn"
+          onClick={onToggle}
+          title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-expanded={isOpen}
+        >
+          {isOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+        </button>
       </div>
 
       <nav className="sidebar-section" aria-label="Tools">
@@ -84,16 +93,6 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
           </a>
         )}
       </div>
-
-      <button
-        className="sidebar-toggle-btn"
-        onClick={onToggle}
-        title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-        aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {isOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-        {isOpen && <span>Collapse</span>}
-      </button>
     </aside>
   );
 }
