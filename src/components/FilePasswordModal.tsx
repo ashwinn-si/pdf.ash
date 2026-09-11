@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Lock, X, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 interface FilePasswordModalProps {
@@ -22,6 +22,15 @@ export default function FilePasswordModal({
   const [showPassword, setShowPassword] = useState(false);
   const [internalError, setInternalError] = useState('');
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleConfirm = () => {
@@ -37,13 +46,19 @@ export default function FilePasswordModal({
 
   return (
     <div className="password-modal-overlay" onClick={onClose}>
-      <div className="password-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="password-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="file-password-modal-title"
+      >
         <div className="password-modal-header">
           <div className="password-modal-title">
             <Lock size={20} />
-            <h3>Password Protected File</h3>
+            <h3 id="file-password-modal-title">Password-protected file</h3>
           </div>
-          <button className="password-modal-close" onClick={onClose}>
+          <button className="password-modal-close" onClick={onClose} aria-label="Close dialog">
             <X size={20} />
           </button>
         </div>
@@ -70,6 +85,8 @@ export default function FilePasswordModal({
                 type="button"
                 className="password-eye-btn"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -77,7 +94,7 @@ export default function FilePasswordModal({
           </div>
 
           {error && (
-            <div className="password-error">
+            <div className="password-error" role="alert">
               <AlertCircle size={14} />
               {error}
             </div>

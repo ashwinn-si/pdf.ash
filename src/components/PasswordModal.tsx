@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Lock, X, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Lock, X, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 interface PasswordModalProps {
   isOpen: boolean;
@@ -20,6 +20,15 @@ export default function PasswordModal({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -42,13 +51,19 @@ export default function PasswordModal({
 
   return (
     <div className="password-modal-overlay" onClick={onClose}>
-      <div className="password-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="password-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lock-modal-title"
+      >
         <div className="password-modal-header">
           <div className="password-modal-title">
             <Lock size={20} />
-            <h3>Protect PDF with Password</h3>
+            <h3 id="lock-modal-title">Protect PDF with password</h3>
           </div>
-          <button className="password-modal-close" onClick={onClose}>
+          <button className="password-modal-close" onClick={onClose} aria-label="Close dialog">
             <X size={20} />
           </button>
         </div>
@@ -74,6 +89,8 @@ export default function PasswordModal({
                 type="button"
                 className="password-eye-btn"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -94,7 +111,12 @@ export default function PasswordModal({
             </div>
           </div>
 
-          {error && <div className="password-error">{error}</div>}
+          {error && (
+            <div className="password-error" role="alert">
+              <AlertCircle size={14} />
+              {error}
+            </div>
+          )}
         </div>
 
         <div className="password-modal-footer">

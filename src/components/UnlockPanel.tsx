@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, KeyRound, Loader2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import { Upload, KeyRound, Loader2, CheckCircle2, AlertCircle, FileText, Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPanelProps {
   onUnlocked: (unlockedBuffer: ArrayBuffer, fileName: string) => void;
@@ -8,6 +8,7 @@ interface UnlockPanelProps {
 export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -114,6 +115,15 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
+          role="button"
+          tabIndex={0}
+          aria-label={file ? `Selected file: ${file.name}. Choose a different file` : 'Drop a locked PDF here or click to browse'}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
         >
           {file ? (
             <div className="unlock-file-info">
@@ -141,19 +151,31 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
         {/* Password input */}
         {file && (
           <div className="unlock-password-section">
-            <label htmlFor="pdf-password">Enter PDF Password</label>
+            <label htmlFor="pdf-password">Enter PDF password</label>
             <div className="unlock-password-row">
-              <input
-                id="pdf-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password..."
-                className="unlock-password-input"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleUnlock();
-                }}
-              />
+              <div className="password-field-wrap">
+                <input
+                  id="pdf-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password..."
+                  className="unlock-password-input"
+                  autoComplete="current-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleUnlock();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="password-field-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <button
                 className="unlock-submit-btn"
                 onClick={handleUnlock}

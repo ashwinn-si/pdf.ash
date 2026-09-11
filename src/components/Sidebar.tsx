@@ -45,7 +45,7 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
         </div>
       </div>
 
-      <nav className="sidebar-section">
+      <nav className="sidebar-section" aria-label="Tools">
         <div className="sidebar-section-label">Tools</div>
         {tools.map((tool) => (
           <button
@@ -53,6 +53,7 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
             className={`sidebar-tool ${activeTool === tool.id ? 'active' : ''}`}
             onClick={() => onSelectTool(activeTool === tool.id ? 'merge' : tool.id)}
             title={tool.description}
+            aria-current={activeTool === tool.id ? 'true' : undefined}
           >
             <span className="sidebar-tool-icon">{tool.icon}</span>
             <span>{tool.label}</span>
@@ -82,7 +83,12 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
         )}
       </div>
 
-      <button className="sidebar-toggle-btn" onClick={onToggle} title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}>
+      <button
+        className="sidebar-toggle-btn"
+        onClick={onToggle}
+        title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+        aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+      >
         {isOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
         {isOpen && <span>Collapse</span>}
       </button>

@@ -7,7 +7,7 @@
 }
 
 .spinning {
-  animation: spin 1s linear infinite;
+  animation: spin 0.9s linear infinite;
 }
 
 /* === Global Drag Overlay === */
@@ -18,8 +18,7 @@
   right: 0;
   bottom: 0;
   background: var(--color-overlay);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,19 +33,18 @@
   padding: 40px 60px;
   border-radius: var(--radius-xl);
   border: 2px dashed var(--color-primary);
-  box-shadow: var(--shadow-xl);
-  transform: scale(1.05);
-  animation: dropPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: var(--shadow-4);
+  animation: dropPop var(--duration-fast) var(--ease-standard) forwards;
 }
 
 .global-drop-content h2 {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--color-text);
   margin-top: 16px;
 }
 
 @keyframes dropPop {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1.05); opacity: 1; }
+  0% { transform: scale(0.97); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }

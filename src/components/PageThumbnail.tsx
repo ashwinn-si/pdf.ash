@@ -57,6 +57,8 @@ export function ThumbnailCard({
             onToggleSelect(page.id);
           }}
           onPointerDown={(e) => e.stopPropagation()}
+          aria-label={page.selected ? `Deselect page ${index + 1}` : `Select page ${index + 1}`}
+          aria-pressed={page.selected}
         >
           {page.selected && <Check size={14} />}
         </button>
@@ -86,6 +88,7 @@ export function ThumbnailCard({
             }}
             onPointerDown={(e) => e.stopPropagation()}
             title="Rotate 90°"
+            aria-label={`Rotate page ${index + 1}`}
           >
             <RotateCw size={14} />
           </button>
@@ -97,6 +100,7 @@ export function ThumbnailCard({
             }}
             onPointerDown={(e) => e.stopPropagation()}
             title="Delete page"
+            aria-label={`Delete page ${index + 1}`}
           >
             <Trash2 size={14} />
           </button>

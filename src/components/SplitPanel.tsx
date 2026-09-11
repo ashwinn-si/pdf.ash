@@ -23,11 +23,12 @@ export default function SplitPanel({
         >
           <input
             type="radio"
+            id="split-mode-range"
             name="splitMode"
             checked={splitMode === 'range'}
             onChange={() => onSplitModeChange('range')}
           />
-          <label>Split by page ranges</label>
+          <label htmlFor="split-mode-range">Split by page ranges</label>
         </div>
 
         {splitMode === 'range' && (
@@ -35,6 +36,7 @@ export default function SplitPanel({
             className="split-range-input"
             type="text"
             placeholder={`e.g. 1-3, 4-${totalPages} (total: ${totalPages} pages)`}
+            aria-label="Page ranges to split"
             value={splitRange}
             onChange={(e) => onSplitRangeChange(e.target.value)}
           />
@@ -46,11 +48,12 @@ export default function SplitPanel({
         >
           <input
             type="radio"
+            id="split-mode-individual"
             name="splitMode"
             checked={splitMode === 'individual'}
             onChange={() => onSplitModeChange('individual')}
           />
-          <label>Split into individual pages ({totalPages} files)</label>
+          <label htmlFor="split-mode-individual">Split into individual pages ({totalPages} files)</label>
         </div>
       </div>
     </div>

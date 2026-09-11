@@ -15,7 +15,7 @@ import {
   sortableKeyboardCoordinates,
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, RotateCw, Trash2, GripVertical } from 'lucide-react';
 import PageThumbnail, { ThumbnailCard } from './PageThumbnail';
 import UploadZone from './UploadZone';
@@ -70,6 +70,35 @@ export default function Workspace({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+
+  const openPreview = (index: number) => {
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    setPreviewPageIndex(index);
+  };
+
+  const closePreview = () => {
+    setPreviewPageIndex(null);
+    lastFocusedRef.current?.focus?.();
+  };
+
+  // Esc closes the preview modal — user control and freedom (never trap the
+  // user in an overlay with no visible or keyboard way out). Arrow keys page
+  // through, matching the visible prev/next controls.
+  useEffect(() => {
+    if (previewPageIndex === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closePreview();
+      } else if (e.key === 'ArrowLeft') {
+        setPreviewPageIndex((i) => (i !== null && i > 0 ? i - 1 : i));
+      } else if (e.key === 'ArrowRight') {
+        setPreviewPageIndex((i) => (i !== null && i < pages.length - 1 ? i + 1 : i));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [previewPageIndex, pages.length]);
 
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 768px)');
@@ -192,7 +221,7 @@ export default function Workspace({
                 onDelete={onDelete}
                 onToggleSelect={onToggleSelect}
                 onMovePage={onMovePage}
-                onClick={() => setPreviewPageIndex(index)}
+                onClick={() => openPreview(index)}
               />
             ))}
           </div>
@@ -221,11 +250,17 @@ export default function Workspace({
 
       {/* Preview Modal */}
       {previewPage && (
-        <div className="preview-modal" onClick={() => setPreviewPageIndex(null)}>
+        <div className="preview-modal" onClick={closePreview}>
           <div className="preview-modal-backdrop" />
-          <div className="preview-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="preview-modal-content"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-modal-title"
+          >
             <div className="preview-modal-header">
-              <span className="preview-modal-title">
+              <span className="preview-modal-title" id="preview-modal-title">
                 Page {previewPageIndex! + 1} of {pages.length}
               </span>
               <div className="preview-modal-actions">
@@ -233,6 +268,7 @@ export default function Workspace({
                   className="preview-btn"
                   onClick={() => onRotate(previewPage.id)}
                   title="Rotate"
+                  aria-label={`Rotate page ${previewPageIndex! + 1}`}
                 >
                   <RotateCw size={20} />
                 </button>
@@ -240,15 +276,17 @@ export default function Workspace({
                   className="preview-btn danger"
                   onClick={() => {
                     onDelete(previewPage.id);
-                    setPreviewPageIndex(null);
+                    closePreview();
                   }}
                   title="Delete"
+                  aria-label={`Delete page ${previewPageIndex! + 1}`}
                 >
                   <Trash2 size={20} />
                 </button>
                 <button
                   className="preview-close"
-                  onClick={() => setPreviewPageIndex(null)}
+                  onClick={closePreview}
+                  aria-label="Close preview"
                 >
                   <X size={24} />
                 </button>
@@ -260,6 +298,7 @@ export default function Workspace({
                 className="preview-nav-btn prev"
                 onClick={handlePrevPreview}
                 disabled={previewPageIndex === 0}
+                aria-label="Previous page"
               >
                 <ChevronLeft size={32} />
               </button>
@@ -276,6 +315,7 @@ export default function Workspace({
                 className="preview-nav-btn next"
                 onClick={handleNextPreview}
                 disabled={previewPageIndex === pages.length - 1}
+                aria-label="Next page"
               >
                 <ChevronRight size={32} />
               </button>

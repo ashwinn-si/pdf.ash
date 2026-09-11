@@ -41,6 +41,8 @@ export default function CompressPanel({
             className="custom-range"
             value={compressionQuality}
             onChange={(e) => onQualityChange(parseInt(e.target.value, 10))}
+            aria-label="Compression quality"
+            aria-valuetext={`${compressionQuality}% — ${getQualityText(compressionQuality)}`}
           />
         </div>
 

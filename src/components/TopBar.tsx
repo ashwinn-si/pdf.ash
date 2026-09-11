@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Upload,
   Undo2,
@@ -39,10 +39,13 @@ export default function TopBar({
   onFilenameChange,
 }: TopBarProps) {
   const [showToaster, setShowToaster] = useState(false);
+  const hasShownToaster = useRef(false);
 
   useEffect(() => {
-    if (hasPages && !showToaster) {
-      // Show toaster when files are first added
+    // Show the filename tip once, the first time files are added this
+    // session — a one-time coach mark, not a recurring interruption.
+    if (hasPages && !hasShownToaster.current) {
+      hasShownToaster.current = true;
       setShowToaster(true);
       const timer = setTimeout(() => setShowToaster(false), 5000);
       return () => clearTimeout(timer);
@@ -65,6 +68,7 @@ export default function TopBar({
                 onClick={onUndo}
                 disabled={!canUndo}
                 title="Undo"
+                aria-label="Undo"
               >
                 <Undo2 size={16} />
               </button>
@@ -73,6 +77,7 @@ export default function TopBar({
                 onClick={onRedo}
                 disabled={!canRedo}
                 title="Redo"
+                aria-label="Redo"
               >
                 <Redo2 size={16} />
               </button>
@@ -87,6 +92,7 @@ export default function TopBar({
                 type="text"
                 className="topbar-filename-input"
                 placeholder="Name your file (optional)..."
+                aria-label="File name"
                 value={customFilename}
                 onChange={(e) => onFilenameChange(e.target.value)}
               />
@@ -107,6 +113,7 @@ export default function TopBar({
             className="theme-toggle"
             onClick={onToggleTheme}
             title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -115,15 +122,21 @@ export default function TopBar({
 
       {/* Notification Toaster */}
       {showToaster && hasPages && (
-        <div className="name-notification-toaster">
+        <div className="name-notification-toaster" role="status">
           <div className="toaster-content">
             <div className="toaster-icon">
               <Info size={18} />
             </div>
             <div className="toaster-text">
-              <p>You can <span className="highlight-primary">change the name of your file</span> here see the Navbar</p>
+              <p>
+                Tip: <span className="highlight-primary">name your file</span> using the field above before you download it
+              </p>
             </div>
-            <button className="toaster-close" onClick={() => setShowToaster(false)}>
+            <button
+              className="toaster-close"
+              onClick={() => setShowToaster(false)}
+              aria-label="Dismiss tip"
+            >
               <X size={16} />
             </button>
           </div>
