@@ -170,7 +170,10 @@ export async function compressPdf(
   for (const page of pages) {
     const buffer = fileBuffers.get(page.fileIndex);
     if (buffer && !loadedPdfs.has(page.fileIndex)) {
-      const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+      // Clone the buffer: pdfjs-dist transfers (detaches) the ArrayBuffer it's given
+      // to its worker, which would otherwise permanently zero out the buffer we
+      // keep in fileBuffers for later operations (merge/split/compress/convert again).
+      const doc = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
       loadedPdfs.set(page.fileIndex, doc);
     }
   }
@@ -320,7 +323,10 @@ export async function convertPdfToImages(
   for (const page of pages) {
     const buffer = fileBuffers.get(page.fileIndex);
     if (buffer && !loadedPdfs.has(page.fileIndex)) {
-      const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+      // Clone the buffer: pdfjs-dist transfers (detaches) the ArrayBuffer it's given
+      // to its worker, which would otherwise permanently zero out the buffer we
+      // keep in fileBuffers for later operations (merge/split/compress/convert again).
+      const doc = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
       loadedPdfs.set(page.fileIndex, doc);
     }
   }
@@ -382,7 +388,10 @@ export async function convertPdfToText(
   for (const page of pages) {
     const buffer = fileBuffers.get(page.fileIndex);
     if (buffer && !loadedPdfs.has(page.fileIndex)) {
-      const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+      // Clone the buffer: pdfjs-dist transfers (detaches) the ArrayBuffer it's given
+      // to its worker, which would otherwise permanently zero out the buffer we
+      // keep in fileBuffers for later operations (merge/split/compress/convert again).
+      const doc = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
       loadedPdfs.set(page.fileIndex, doc);
     }
   }
