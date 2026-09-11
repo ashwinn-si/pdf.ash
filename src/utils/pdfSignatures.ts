@@ -229,11 +229,16 @@ function attributeOf(
  * Inspect every signature in a PDF. pkijs is imported lazily so the CMS/ASN.1
  * machinery is only downloaded when someone actually opens this tool.
  */
-export async function verifyPdfSignatures(bytes: Uint8Array): Promise<SignatureReport[]> {
+export async function verifyPdfSignatures(
+  bytes: Uint8Array,
+  /** Called once the code-split CMS parser is in and checking begins. */
+  onReady?: () => void
+): Promise<SignatureReport[]> {
   const raw = findSignatures(bytes);
   if (raw.length === 0) return [];
 
   const [pkijs, asn1js] = await Promise.all([import('pkijs'), import('asn1js')]);
+  onReady?.();
   const reports: SignatureReport[] = [];
 
   for (let i = 0; i < raw.length; i++) {

@@ -4,6 +4,7 @@ import AnnotationToolbar from './AnnotationToolbar';
 import AnnotationLayer from './AnnotationLayer';
 import SignatureModal from './SignatureModal';
 import { renderPageImage } from '../utils/pdfOperations';
+import { describeFailure } from '../utils/lazyModule';
 import {
   INK_COLORS,
   HIGHLIGHT_COLORS,
@@ -99,7 +100,11 @@ export default function PdfEditor({
       })
       .catch((err) => {
         console.error('Could not render page for editing:', err);
-        if (!cancelled) setRenderError('This page could not be opened for editing.');
+        if (!cancelled) {
+          setRenderError(
+            describeFailure(err, 'This page could not be opened for editing.')
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setIsRendering(false);
@@ -370,6 +375,14 @@ export default function PdfEditor({
                 height={layout.height}
                 draggable={false}
               />
+              {isRendering && (
+                <div className="pdf-editor-page-loading" role="status">
+                  <span>
+                    <Loader2 size={16} className="spinning" />
+                    Rendering page {safeIndex + 1}…
+                  </span>
+                </div>
+              )}
               <AnnotationLayer
                 annotations={annotations}
                 tool={tool}

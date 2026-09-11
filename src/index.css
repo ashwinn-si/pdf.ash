@@ -2554,6 +2554,37 @@ button:focus-visible {
   user-select: none;
 }
 
+/*
+ * Shown while a page rasterises — including when paging, where the previous
+ * page stays on screen and would otherwise give no sign that anything is
+ * happening. Veils rather than hides, so the old page still gives context.
+ */
+.pdf-editor-page-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(1px);
+  z-index: 2;
+}
+
+.pdf-editor-page-loading span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
 /* === Edit tool: annotation overlay === */
 .annotation-layer {
   position: absolute;

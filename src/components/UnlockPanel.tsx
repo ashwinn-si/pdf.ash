@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { describeFailure } from '../utils/lazyModule';
 import { Upload, KeyRound, Loader2, CheckCircle2, AlertCircle, FileText, Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPanelProps {
@@ -10,6 +11,9 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // The qpdf engine is a ~1.7MB code-split chunk fetched on first use; that
+  // wait is long enough that it needs its own label.
+  const [phase, setPhase] = useState<'loading' | 'working'>('loading');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,12 +41,14 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
     if (!file || !password) return;
 
     setIsProcessing(true);
+    setPhase('loading');
     setError('');
     setSuccess(false);
 
     try {
       // Import qpdf wasm
       const createQPDF = (await import('qpdf-wasm-esm-embedded')).default;
+      setPhase('working');
       
       const arrayBuffer = await file.arrayBuffer();
       const inputBytes = new Uint8Array(arrayBuffer);
@@ -92,7 +98,12 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
       }
     } catch (err: any) {
       console.error('Unlock error:', err);
-      setError('An error occurred during decryption. The file may be corrupt or unsupported.');
+      setError(
+        describeFailure(
+          err,
+          'An error occurred during decryption. The file may be corrupt or unsupported.'
+        )
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -184,7 +195,7 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
                 {isProcessing ? (
                   <>
                     <Loader2 size={16} className="spinning" />
-                    Unlocking...
+                    {phase === 'loading' ? 'Preparing…' : 'Unlocking…'}
                   </>
                 ) : (
                   <>

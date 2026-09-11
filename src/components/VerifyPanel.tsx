@@ -14,6 +14,7 @@ import {
   type SignatureReport,
   type CheckStatus,
 } from '../utils/pdfSignatures';
+import { describeFailure } from '../utils/lazyModule';
 
 function StatusIcon({ status }: { status: CheckStatus }) {
   if (status === 'pass') return <CheckCircle2 size={18} />;
@@ -57,6 +58,9 @@ export default function VerifyPanel() {
   const [file, setFile] = useState<File | null>(null);
   const [reports, setReports] = useState<SignatureReport[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  // The verifier's ASN.1/CMS code is code-split and fetched on first use, so
+  // the wait has two distinct phases worth telling the user apart.
+  const [phase, setPhase] = useState<'loading' | 'checking'>('loading');
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -64,13 +68,14 @@ export default function VerifyPanel() {
     setFile(selected);
     setReports(null);
     setError('');
+    setPhase('loading');
     setIsChecking(true);
     try {
       const bytes = new Uint8Array(await selected.arrayBuffer());
-      setReports(await verifyPdfSignatures(bytes));
+      setReports(await verifyPdfSignatures(bytes, () => setPhase('checking')));
     } catch (err) {
       console.error('Signature check failed:', err);
-      setError('That file could not be read as a PDF.');
+      setError(describeFailure(err, 'That file could not be read as a PDF.'));
     } finally {
       setIsChecking(false);
     }
@@ -139,7 +144,10 @@ export default function VerifyPanel() {
 
         {isChecking && (
           <p className="verify-status">
-            <Loader2 size={16} className="spinning" /> Checking signatures…
+            <Loader2 size={16} className="spinning" />
+            {phase === 'loading'
+              ? 'Downloading the signature verifier…'
+              : 'Checking signatures…'}
           </p>
         )}
 
