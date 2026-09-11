@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, degrees, type PDFFont } from 'pdf-lib';
 import { encryptPDF } from '@pdfsmaller/pdf-encrypt-lite';
 import type { PageInfo } from './pdfRenderer';
+import { pdfjsLib } from './pdfjs';
 import { stampAnnotations, scaleAnnotation, type FontResolver } from './annotationStamp';
 import type { TextFont } from './annotations';
 
@@ -135,7 +136,6 @@ export async function renderPageImage(
   userRotation: number,
   scale: number = 1.5
 ): Promise<{ url: string; width: number; height: number; pointWidth: number; pointHeight: number }> {
-  const pdfjsLib = await import('pdfjs-dist');
   const buffer = fileBuffers.get(fileIndex);
   if (!buffer) throw new Error(`No buffer stored for file ${fileIndex}`);
 
@@ -287,7 +287,6 @@ export async function compressPdf(
   quality: number,
   onProgress?: (progress: number) => void
 ): Promise<Uint8Array> {
-  const pdfjsLib = await import('pdfjs-dist');
   const outputPdf = await PDFDocument.create();
   let fontFor: FontResolver | undefined;
 
@@ -458,7 +457,6 @@ export async function convertPdfToImages(
   customFilename?: string,
   onProgress?: (progress: number) => void
 ): Promise<void> {
-  const pdfjsLib = await import('pdfjs-dist');
 
   // Load each unique file
   const loadedPdfs: Map<number, any> = new Map();
@@ -527,7 +525,6 @@ export async function convertPdfToText(
   filename: string = 'extracted_text.txt',
   onProgress?: (progress: number) => void
 ): Promise<void> {
-  const pdfjsLib = await import('pdfjs-dist');
 
   const loadedPdfs: Map<number, any> = new Map();
   for (const page of pages) {

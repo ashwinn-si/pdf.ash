@@ -11,6 +11,13 @@ export default defineConfig({
       exclude: [/node_modules/],
       apply: 'build',
       options: {
+        // Specifiers of dynamic imports must survive as plain literals.
+        // Anything the obfuscator turns into a string-array lookup is
+        // invisible to Rollup, so it never gets rewritten into a chunk URL and
+        // the bare package name reaches the browser, which cannot resolve it.
+        // pdfjs-dist is imported statically (see utils/pdfjs.ts); these two are
+        // deliberately lazy and so need protecting by name.
+        reservedStrings: ['^pkijs$', '^asn1js$', '^qpdf-wasm-esm-embedded$'],
         compact: true,
         controlFlowFlattening: true,
         controlFlowFlatteningThreshold: 0.75,

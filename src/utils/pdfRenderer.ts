@@ -1,9 +1,5 @@
-import * as pdfjsLib from 'pdfjs-dist';
+import { pdfjsLib } from './pdfjs';
 import type { Annotation } from './annotations';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-// Use ?url import so Vite emits the worker as a hashed asset — works correctly on all CDN deploys (Vercel, Netlify, etc.)
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export interface PageInfo {
   id: string;
