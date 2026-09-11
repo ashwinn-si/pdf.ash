@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import {
   annotationBounds,
@@ -84,6 +84,7 @@ export default function AnnotationLayer({
   const [gesture, setGesture] = useState<Gesture | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mirrorRef = useRef<HTMLSpanElement>(null);
 
   const scale = widthPx / pointWidth;
   const editing = annotations.find((a) => a.id === editingId && a.kind === 'text') as
@@ -101,6 +102,21 @@ export default function AnnotationLayer({
     setGesture(null);
     setEditingId(null);
   }
+
+  // Grow the editor to fit exactly what has been typed. A hidden mirror span
+  // measures the widest line with the same font, which works everywhere —
+  // `field-sizing: content` is Chrome-only, and without it a textarea falls
+  // back to its default ~20x2 character box.
+  useLayoutEffect(() => {
+    const box = textareaRef.current;
+    const mirror = mirrorRef.current;
+    if (!box || !mirror || !editing) return;
+    mirror.textContent = editing.text || 'Type…';
+    const lines = Math.max(1, editing.text.split('\n').length);
+    // The box is content-box, so these are the glyph area exactly.
+    box.style.width = `${Math.ceil(mirror.offsetWidth) + 1}px`;
+    box.style.height = `${Math.ceil(lines * editing.fontSize * scale * 1.2)}px`;
+  });
 
   // Focus on the next frame, not synchronously: the pointerdown that creates a
   // text box is still mid-sequence, and the mousedown default that follows it
@@ -460,37 +476,52 @@ export default function AnnotationLayer({
       )}
 
       {editing && (
-        <textarea
-          ref={textareaRef}
-          className="annotation-text-input"
-          value={editing.text}
-          style={{
-            left: editing.x * scale,
-            top: editing.y * scale,
-            fontSize: editing.fontSize * scale,
-            fontFamily: textFontCss(editing.font),
-            fontWeight: editing.bold ? 'bold' : 'normal',
-            fontStyle: editing.italic ? 'italic' : 'normal',
-            lineHeight: 1.2,
-            color: editing.color,
-            minWidth: 120 * scale,
-          }}
-          onChange={(e) => onUpdate({ ...editing, text: e.target.value })}
-          onBlur={finishTextEdit}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              finishTextEdit();
-            }
-            // Enter commits; Shift+Enter adds a line.
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              finishTextEdit();
-            }
-            e.stopPropagation();
-          }}
-          placeholder="Type…"
-        />
+        <>
+          <span
+            ref={mirrorRef}
+            className="annotation-text-mirror"
+            aria-hidden="true"
+            style={{
+              fontSize: editing.fontSize * scale,
+              fontFamily: textFontCss(editing.font),
+              fontWeight: editing.bold ? 'bold' : 'normal',
+              fontStyle: editing.italic ? 'italic' : 'normal',
+              lineHeight: 1.2,
+            }}
+          />
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            className="annotation-text-input"
+            value={editing.text}
+            style={{
+              left: editing.x * scale,
+              top: editing.y * scale,
+              fontSize: editing.fontSize * scale,
+              fontFamily: textFontCss(editing.font),
+              fontWeight: editing.bold ? 'bold' : 'normal',
+              fontStyle: editing.italic ? 'italic' : 'normal',
+              lineHeight: 1.2,
+              color: editing.color,
+              caretColor: editing.color,
+            }}
+            onChange={(e) => onUpdate({ ...editing, text: e.target.value })}
+            onBlur={finishTextEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                finishTextEdit();
+              }
+              // Enter commits; Shift+Enter adds a line.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                finishTextEdit();
+              }
+              e.stopPropagation();
+            }}
+            placeholder="Type…"
+          />
+        </>
       )}
     </div>
   );

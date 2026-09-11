@@ -2608,17 +2608,45 @@ button:focus-visible {
   touch-action: none;
 }
 
+/*
+ * The inline text editor. Sized in JS to its exact glyph area, and laid out
+ * content-box so its chrome grows outward: the negative margin cancels the
+ * border and padding, which keeps the characters sitting precisely where they
+ * will be stamped instead of a few pixels off.
+ */
 .annotation-text-input {
+  --text-pad-x: 5px;
+  --text-pad-y: 3px;
   position: absolute;
-  margin: 0;
-  padding: 0 2px;
-  border: 1px dashed var(--color-primary);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.92);
-  font-family: Helvetica, Arial, sans-serif;
+  box-sizing: content-box;
+  padding: var(--text-pad-y) var(--text-pad-x);
+  margin: calc(-1px - var(--text-pad-y)) 0 0 calc(-1px - var(--text-pad-x));
+  /* Fixed neutrals, not theme tokens: this box always sits on a white page,
+     and a saturated outline fights the document it is annotating. */
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 5px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 16px rgba(15, 23, 42, 0.12);
   resize: none;
   overflow: hidden;
-  field-sizing: content;
+  white-space: pre;
+  outline: none;
+}
+
+.annotation-text-input::placeholder {
+  color: rgba(15, 23, 42, 0.35);
+}
+
+/* Measures the widest line so the editor can size itself; never displayed. */
+.annotation-text-mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre;
 }
 
 /* === Signature modal === */
