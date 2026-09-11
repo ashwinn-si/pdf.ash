@@ -24,6 +24,7 @@ import ConvertPanel from './ConvertPanel';
 import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
 import PdfEditor from './PdfEditor';
+import VerifyPanel from './VerifyPanel';
 import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
 import type { Annotation } from '../utils/annotations';
@@ -149,6 +150,15 @@ export default function Workspace({
       setPreviewPageIndex(previewPageIndex + 1);
     }
   };
+
+  // Verification is about one specific file, not the loaded page set.
+  if (activeTool === 'verify') {
+    return (
+      <div className="workspace">
+        <VerifyPanel />
+      </div>
+    );
+  }
 
   // Unlock tool renders its own dedicated UI
   if (activeTool === 'unlock') {

@@ -537,7 +537,7 @@ function App() {
           onCheckpoint={handleCheckpoint}
         />
 
-        {activeTool !== 'unlock' && (
+        {activeTool !== 'unlock' && activeTool !== 'verify' && (
           <BottomBar
             pageCount={pages.length}
             selectedCount={selectedCount}

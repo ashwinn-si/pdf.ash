@@ -11,9 +11,10 @@ import {
   LayoutGrid,
   LockOpen,
   PenTool,
+  ShieldCheck,
 } from 'lucide-react';
 
-export type Tool = 'merge' | 'rearrange' | 'edit' | 'split' | 'compress' | 'convert' | 'imageToPdf' | 'unlock';
+export type Tool = 'merge' | 'rearrange' | 'edit' | 'split' | 'compress' | 'convert' | 'imageToPdf' | 'unlock' | 'verify';
 
 interface SidebarProps {
   activeTool: Tool;
@@ -32,6 +33,7 @@ const tools: { id: Tool; label: string; icon: React.ReactNode; description: stri
   { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },
   { id: 'imageToPdf', label: 'Convert to PDF', icon: <ImagePlus size={18} />, description: 'Convert images or Markdown files to PDF' },
   { id: 'unlock', label: 'Unlock', icon: <LockOpen size={18} />, description: 'Remove password from PDF' },
+  { id: 'verify', label: 'Verify', icon: <ShieldCheck size={18} />, description: 'Check a PDF’s digital signatures' },
 ];
 
 export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, onToggle }: SidebarProps) {
