@@ -9,7 +9,7 @@ import {
 } from 'pdf-lib';
 import {
   hexToRgb01,
-  HIGHLIGHT_OPACITY,
+  opacityOf,
   type Annotation,
   type Point,
   type TextFont,
@@ -152,7 +152,7 @@ export async function stampAnnotations(
           height: a.h,
           rotate,
           color: colorOf(a.color),
-          opacity: HIGHLIGHT_OPACITY,
+          opacity: opacityOf(a),
           blendMode: BlendMode.Multiply,
         });
         break;
@@ -161,12 +161,14 @@ export async function stampAnnotations(
       case 'pencil': {
         const pts = simplifyStroke(a.points);
         const color = colorOf(a.color);
+        const opacity = opacityOf(a);
         for (let i = 1; i < pts.length; i++) {
           page.drawLine({
             start: toUserSpace(pts[i - 1].x, pts[i - 1].y, page),
             end: toUserSpace(pts[i].x, pts[i].y, page),
             thickness: a.strokeWidth,
             color,
+            opacity,
             lineCap: LineCapStyle.Round,
           });
         }
@@ -178,6 +180,7 @@ export async function stampAnnotations(
             end: p,
             thickness: a.strokeWidth,
             color,
+            opacity,
             lineCap: LineCapStyle.Round,
           });
         }
@@ -187,12 +190,14 @@ export async function stampAnnotations(
       case 'cross': {
         const h = a.size / 2;
         const color = colorOf(a.color);
+        const opacity = opacityOf(a);
         const thickness = Math.max(1, a.size * 0.12);
         page.drawLine({
           start: toUserSpace(a.x - h, a.y - h, page),
           end: toUserSpace(a.x + h, a.y + h, page),
           thickness,
           color,
+          opacity,
           lineCap: LineCapStyle.Round,
         });
         page.drawLine({
@@ -200,6 +205,7 @@ export async function stampAnnotations(
           end: toUserSpace(a.x - h, a.y + h, page),
           thickness,
           color,
+          opacity,
           lineCap: LineCapStyle.Round,
         });
         break;
@@ -208,6 +214,7 @@ export async function stampAnnotations(
       case 'check': {
         const s = a.size;
         const color = colorOf(a.color);
+        const opacity = opacityOf(a);
         const thickness = Math.max(1, s * 0.13);
         const elbow = { x: a.x - 0.08 * s, y: a.y + 0.3 * s };
         page.drawLine({
@@ -215,6 +222,7 @@ export async function stampAnnotations(
           end: toUserSpace(elbow.x, elbow.y, page),
           thickness,
           color,
+          opacity,
           lineCap: LineCapStyle.Round,
         });
         page.drawLine({
@@ -222,6 +230,7 @@ export async function stampAnnotations(
           end: toUserSpace(a.x + 0.42 * s, a.y - 0.34 * s, page),
           thickness,
           color,
+          opacity,
           lineCap: LineCapStyle.Round,
         });
         break;
@@ -244,6 +253,7 @@ export async function stampAnnotations(
             size: a.fontSize,
             font,
             color,
+            opacity: opacityOf(a),
             rotate,
           });
         }
@@ -261,6 +271,7 @@ export async function stampAnnotations(
           y: anchor.y,
           width: a.w,
           height: a.h,
+          opacity: opacityOf(a),
           rotate,
         });
         break;

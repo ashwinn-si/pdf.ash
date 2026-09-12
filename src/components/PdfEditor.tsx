@@ -8,9 +8,12 @@ import { describeFailure } from '../utils/lazyModule';
 import {
   INK_COLORS,
   HIGHLIGHT_COLORS,
+  DEFAULT_OPACITY,
+  opacityOf,
   annotationSize,
   withAnnotationSize,
   withAnnotationColor,
+  withAnnotationOpacity,
   withTextStyle,
   newAnnotationId,
   type Annotation,
@@ -61,6 +64,7 @@ export default function PdfEditor({
   const [inkColor, setInkColor] = useState(INK_COLORS[0]);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
+  const [opacities, setOpacities] = useState(DEFAULT_OPACITY);
   const [textFont, setTextFont] = useState<TextFont>('helvetica');
   const [bold, setBold] = useState(false);
   const [italic, setItalic] = useState(false);
@@ -201,6 +205,7 @@ export default function PdfEditor({
       handleCommit({
         id: newAnnotationId(),
         kind: 'signature',
+        opacity: opacities.signature,
         // Drop it centred on the click, so it lands where the user aimed.
         x: Math.max(0, at.x - w / 2),
         y: Math.max(0, at.y - h / 2),
@@ -210,7 +215,7 @@ export default function PdfEditor({
       });
       setTool('select');
     },
-    [signatureAt, rendered, handleCommit]
+    [signatureAt, rendered, handleCommit, opacities.signature]
   );
 
   const selected = useMemo(
@@ -252,6 +257,19 @@ export default function PdfEditor({
         : null;
 
   const selectedText = selected?.kind === 'text' ? selected : null;
+
+  // Opacity applies to every kind, so unlike size it has no per-kind gating.
+  const toolbarOpacity = selected
+    ? opacityOf(selected)
+    : editingKind
+      ? opacities[editingKind]
+      : null;
+
+  const handleOpacityChange = (value: number) => {
+    if (selected) handleUpdate(withAnnotationOpacity(selected, value));
+    const kind = selected?.kind ?? editingKind;
+    if (kind) setOpacities((prev) => ({ ...prev, [kind]: value }));
+  };
 
   const handleSizeChange = (value: number) => {
     if (selected && annotationSize(selected) !== null) {
@@ -295,6 +313,8 @@ export default function PdfEditor({
         onColorChange={handleColorChange}
         size={toolbarSize}
         onSizeChange={handleSizeChange}
+        opacity={toolbarOpacity}
+        onOpacityChange={handleOpacityChange}
         onEditStart={onCheckpoint}
         textFont={selectedText?.font ?? textFont}
         bold={selectedText?.bold ?? bold}
@@ -393,6 +413,7 @@ export default function PdfEditor({
                 bold={bold}
                 italic={italic}
                 markSize={tool === 'check' ? sizes.check : sizes.cross}
+                opacity={tool === 'select' ? 1 : opacities[tool]}
                 pointWidth={rendered.pointWidth}
                 pointHeight={rendered.pointHeight}
                 widthPx={layout.width}

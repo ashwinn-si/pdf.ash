@@ -33,6 +33,8 @@ interface AnnotationToolbarProps {
   onColorChange: (color: string) => void;
   size: number | null;
   onSizeChange: (size: number) => void;
+  opacity: number | null;
+  onOpacityChange: (opacity: number) => void;
   /** Called as a slider drag or swatch click begins, to snapshot for undo. */
   onEditStart: () => void;
   /** Text styling — shown only while text is the kind being edited. */
@@ -43,30 +45,30 @@ interface AnnotationToolbarProps {
 }
 
 const TOOLS: { id: EditorTool; label: string; icon: React.ReactNode }[] = [
-  { id: 'select', label: 'Select', icon: <MousePointer2 size={20} /> },
-  { id: 'text', label: 'Add Text', icon: <Type size={20} /> },
-  { id: 'highlight', label: 'Highlight', icon: <Highlighter size={20} /> },
-  { id: 'pencil', label: 'Pencil', icon: <Pencil size={20} /> },
-  { id: 'cross', label: 'Cross', icon: <X size={20} /> },
-  { id: 'check', label: 'Check', icon: <Check size={20} /> },
-  { id: 'signature', label: 'Sign', icon: <Signature size={20} /> },
+  { id: 'select', label: 'Select', icon: <MousePointer2 size={18} /> },
+  { id: 'text', label: 'Text', icon: <Type size={18} /> },
+  { id: 'highlight', label: 'Highlight', icon: <Highlighter size={18} /> },
+  { id: 'pencil', label: 'Pencil', icon: <Pencil size={18} /> },
+  { id: 'cross', label: 'Cross', icon: <X size={18} /> },
+  { id: 'check', label: 'Check', icon: <Check size={18} /> },
+  { id: 'signature', label: 'Sign', icon: <Signature size={18} /> },
 ];
 
 /** What the size slider means, per annotation kind. */
 const SIZE_RANGE: Partial<Record<AnnotationKind, { min: number; max: number; label: string }>> = {
-  text: { min: 6, max: 72, label: 'Text size' },
+  text: { min: 6, max: 72, label: 'Size' },
   pencil: { min: 0.5, max: 16, label: 'Stroke' },
-  cross: { min: 6, max: 72, label: 'Mark size' },
-  check: { min: 6, max: 72, label: 'Mark size' },
+  cross: { min: 6, max: 72, label: 'Size' },
+  check: { min: 6, max: 72, label: 'Size' },
 };
 
 const KIND_LABEL: Record<AnnotationKind, string> = {
-  text: 'text',
-  highlight: 'highlight',
-  pencil: 'drawing',
-  cross: 'cross',
-  check: 'check',
-  signature: 'signature',
+  text: 'Text',
+  highlight: 'Highlight',
+  pencil: 'Drawing',
+  cross: 'Cross',
+  check: 'Check',
+  signature: 'Signature',
 };
 
 export default function AnnotationToolbar({
@@ -78,6 +80,8 @@ export default function AnnotationToolbar({
   onColorChange,
   size,
   onSizeChange,
+  opacity,
+  onOpacityChange,
   onEditStart,
   textFont,
   bold,
@@ -88,13 +92,12 @@ export default function AnnotationToolbar({
   const showColors = editingKind !== null && editingKind !== 'signature' && color !== null;
   const range = editingKind ? SIZE_RANGE[editingKind] : undefined;
   const showSize = range !== undefined && size !== null;
-  // A signature or highlight is sized by dragging its corner, not by a slider.
-  const handleOnly = hasSelection && !showSize;
+  const showOpacity = editingKind !== null && opacity !== null;
   const showText = editingKind === 'text';
 
   return (
     <div className="annotation-toolbar" role="toolbar" aria-label="Annotation tools">
-      <div className="annotation-toolbar-tools">
+      <div className="annotation-toolbar-row annotation-toolbar-tools">
         {TOOLS.map((t) => (
           <button
             key={t.id}
@@ -109,100 +112,132 @@ export default function AnnotationToolbar({
         ))}
       </div>
 
-      {(showColors || showSize || handleOnly || showText) && (
-        <div className={`annotation-toolbar-options ${hasSelection ? 'for-selection' : ''}`}>
-          {hasSelection && editingKind && (
-            <span className="annotation-options-scope">
-              Selected {KIND_LABEL[editingKind]}
-            </span>
-          )}
+      {/*
+        Always rendered, even with nothing to configure. The row used to mount
+        and unmount as tools changed, shifting the page down by its own height
+        mid-interaction.
+      */}
+      <div
+        className={`annotation-toolbar-row annotation-toolbar-options ${
+          hasSelection ? 'for-selection' : ''
+        }`}
+      >
+        {editingKind && (
+          <span className="annotation-options-scope">
+            {hasSelection ? 'Selected' : 'New'} {KIND_LABEL[editingKind].toLowerCase()}
+          </span>
+        )}
 
-          {showColors && (
-            <div className="annotation-swatches" role="group" aria-label="Colour">
-              {palette.map((c) => (
-                <button
-                  key={c}
-                  className={`annotation-swatch ${color === c ? 'active' : ''}`}
-                  style={{ background: c }}
-                  onClick={() => {
-                    onEditStart();
-                    onColorChange(c);
-                  }}
-                  aria-label={`Colour ${c}`}
-                  aria-pressed={color === c}
-                />
-              ))}
-            </div>
-          )}
-
-          {showText && (
-            <div className="annotation-textstyle">
-              <select
-                className="annotation-font-select"
-                aria-label="Font"
-                value={textFont}
-                onChange={(e) => {
-                  onEditStart();
-                  onTextStyleChange({ font: e.target.value as TextFont });
-                }}
-              >
-                {TEXT_FONTS.map((f) => (
-                  <option key={f.id} value={f.id} style={{ fontFamily: f.css }}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
+        {showColors && (
+          <div className="annotation-swatches" role="group" aria-label="Colour">
+            {palette.map((c) => (
               <button
-                className={`annotation-style-btn ${bold ? 'active' : ''}`}
-                aria-pressed={bold}
-                aria-label="Bold"
-                title="Bold"
+                key={c}
+                className={`annotation-swatch ${color === c ? 'active' : ''}`}
+                style={{ background: c }}
                 onClick={() => {
                   onEditStart();
-                  onTextStyleChange({ bold: !bold });
+                  onColorChange(c);
                 }}
-              >
-                <Bold size={15} />
-              </button>
-              <button
-                className={`annotation-style-btn ${italic ? 'active' : ''}`}
-                aria-pressed={italic}
-                aria-label="Italic"
-                title="Italic"
-                onClick={() => {
-                  onEditStart();
-                  onTextStyleChange({ italic: !italic });
-                }}
-              >
-                <Italic size={15} />
-              </button>
-            </div>
-          )}
-
-          {showSize && range && (
-            <label className="annotation-size">
-              <span>{range.label}</span>
-              <input
-                type="range"
-                min={range.min}
-                max={range.max}
-                step={range.max <= 16 ? 0.5 : 1}
-                value={Math.min(range.max, Math.max(range.min, size))}
-                onPointerDown={onEditStart}
-                onKeyDown={onEditStart}
-                onChange={(e) => onSizeChange(Number(e.target.value))}
+                aria-label={`Colour ${c}`}
+                aria-pressed={color === c}
               />
-              <output>{Math.round(size * 10) / 10}</output>
-            </label>
-          )}
+            ))}
+          </div>
+        )}
 
-          {handleOnly && (
-            <span className="annotation-options-hint">
-              Drag the corner handle to resize
-            </span>
-          )}
-        </div>
-      )}
+        {showText && (
+          <div className="annotation-group">
+            <select
+              className="annotation-font-select"
+              aria-label="Font"
+              value={textFont}
+              onChange={(e) => {
+                onEditStart();
+                onTextStyleChange({ font: e.target.value as TextFont });
+              }}
+            >
+              {TEXT_FONTS.map((f) => (
+                <option key={f.id} value={f.id} style={{ fontFamily: f.css }}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className={`annotation-style-btn ${bold ? 'active' : ''}`}
+              aria-pressed={bold}
+              aria-label="Bold"
+              title="Bold"
+              onClick={() => {
+                onEditStart();
+                onTextStyleChange({ bold: !bold });
+              }}
+            >
+              <Bold size={15} />
+            </button>
+            <button
+              className={`annotation-style-btn ${italic ? 'active' : ''}`}
+              aria-pressed={italic}
+              aria-label="Italic"
+              title="Italic"
+              onClick={() => {
+                onEditStart();
+                onTextStyleChange({ italic: !italic });
+              }}
+            >
+              <Italic size={15} />
+            </button>
+          </div>
+        )}
+
+        {showSize && range && (
+          <label className="annotation-field">
+            <span>{range.label}</span>
+            <input
+              type="range"
+              min={range.min}
+              max={range.max}
+              step={range.max <= 16 ? 0.5 : 1}
+              value={Math.min(range.max, Math.max(range.min, size))}
+              onPointerDown={onEditStart}
+              onKeyDown={onEditStart}
+              onChange={(e) => onSizeChange(Number(e.target.value))}
+            />
+            <output>{Math.round(size * 10) / 10}</output>
+          </label>
+        )}
+
+        {showOpacity && (
+          <label className="annotation-field">
+            <span>Opacity</span>
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={Math.round(opacity * 100)}
+              onPointerDown={onEditStart}
+              onKeyDown={onEditStart}
+              onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
+            />
+            <output>{Math.round(opacity * 100)}%</output>
+          </label>
+        )}
+
+        {editingKind === 'signature' && !hasSelection && (
+          <span className="annotation-options-hint">
+            Click the page to place a signature
+          </span>
+        )}
+        {hasSelection && (editingKind === 'signature' || editingKind === 'highlight') && (
+          <span className="annotation-options-hint">Drag the corner to resize</span>
+        )}
+        {!editingKind && (
+          <span className="annotation-options-hint">
+            Pick a tool, or select a mark to change it
+          </span>
+        )}
+      </div>
     </div>
   );
 }

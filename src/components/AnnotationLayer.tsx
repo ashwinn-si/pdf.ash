@@ -7,7 +7,7 @@ import {
   resizesFreely,
   textFontCss,
   newAnnotationId,
-  HIGHLIGHT_OPACITY,
+  opacityOf,
   type Annotation,
   type EditorTool,
   type Point,
@@ -24,6 +24,7 @@ interface AnnotationLayerProps {
   bold: boolean;
   italic: boolean;
   markSize: number;
+  opacity: number;
   /** Displayed page box in PDF points — the SVG's viewBox. */
   pointWidth: number;
   pointHeight: number;
@@ -67,6 +68,7 @@ export default function AnnotationLayer({
   bold,
   italic,
   markSize,
+  opacity,
   pointWidth,
   pointHeight,
   widthPx,
@@ -168,7 +170,7 @@ export default function AnnotationLayer({
         break;
       case 'cross':
       case 'check':
-        onCommit({ id: newAnnotationId(), kind: tool, x: p.x, y: p.y, size: markSize, color });
+        onCommit({ id: newAnnotationId(), kind: tool, x: p.x, y: p.y, size: markSize, color, opacity });
         break;
       case 'text': {
         const id = newAnnotationId();
@@ -183,6 +185,7 @@ export default function AnnotationLayer({
           font: textFont,
           bold,
           italic,
+          opacity,
         });
         setEditingId(id);
         break;
@@ -231,6 +234,7 @@ export default function AnnotationLayer({
           points: draft.points,
           color,
           strokeWidth,
+          opacity,
         });
       }
     } else if (draft?.kind === 'highlight') {
@@ -239,7 +243,7 @@ export default function AnnotationLayer({
       const w = Math.abs(draft.current.x - draft.origin.x);
       const h = Math.abs(draft.current.y - draft.origin.y);
       if (w >= MIN_HIGHLIGHT && h >= MIN_HIGHLIGHT) {
-        onCommit({ id: newAnnotationId(), kind: 'highlight', x, y, w, h, color });
+        onCommit({ id: newAnnotationId(), kind: 'highlight', x, y, w, h, color, opacity });
       }
     }
     setDraft(null);
@@ -290,7 +294,7 @@ export default function AnnotationLayer({
             width={a.w}
             height={a.h}
             fill={a.color}
-            opacity={HIGHLIGHT_OPACITY}
+            opacity={opacityOf(a)}
             style={{ ...common.style, mixBlendMode: 'multiply' }}
           />
         );
@@ -303,6 +307,7 @@ export default function AnnotationLayer({
             fill="none"
             stroke={a.color}
             strokeWidth={a.strokeWidth}
+            strokeOpacity={opacityOf(a)}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -310,7 +315,7 @@ export default function AnnotationLayer({
       case 'cross': {
         const h = a.size / 2;
         return (
-          <g key={a.id} {...common}>
+          <g key={a.id} {...common} opacity={opacityOf(a)}>
             <path
               d={`M${a.x - h},${a.y - h} L${a.x + h},${a.y + h} M${a.x + h},${a.y - h} L${a.x - h},${a.y + h}`}
               stroke={a.color}
@@ -324,7 +329,7 @@ export default function AnnotationLayer({
       case 'check': {
         const s = a.size;
         return (
-          <g key={a.id} {...common}>
+          <g key={a.id} {...common} opacity={opacityOf(a)}>
             <path
               d={`M${a.x - 0.4 * s},${a.y + 0.02 * s} L${a.x - 0.08 * s},${a.y + 0.3 * s} L${a.x + 0.42 * s},${a.y - 0.34 * s}`}
               stroke={a.color}
@@ -346,6 +351,7 @@ export default function AnnotationLayer({
             x={a.x}
             y={a.y + a.fontSize * 0.82}
             fill={a.color}
+            fillOpacity={opacityOf(a)}
             fontSize={a.fontSize}
             fontFamily={textFontCss(a.font)}
             fontWeight={a.bold ? 'bold' : 'normal'}
@@ -369,6 +375,7 @@ export default function AnnotationLayer({
             y={a.y}
             width={a.w}
             height={a.h}
+            opacity={opacityOf(a)}
             preserveAspectRatio="none"
           />
         );
@@ -407,6 +414,7 @@ export default function AnnotationLayer({
             fill="none"
             stroke={color}
             strokeWidth={strokeWidth}
+            strokeOpacity={opacity}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -419,7 +427,7 @@ export default function AnnotationLayer({
             width={Math.abs(draft.current.x - draft.origin.x)}
             height={Math.abs(draft.current.y - draft.origin.y)}
             fill={color}
-            opacity={HIGHLIGHT_OPACITY}
+            opacity={opacity}
           />
         )}
 

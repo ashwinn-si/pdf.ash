@@ -1416,7 +1416,10 @@ button:focus-visible {
 
   .topbar {
     padding: 0 16px;
-    height: 56px;
+    /* A fixed height here cancelled the `height: auto` the wrapping rule
+       above depends on, so the filename row spilled out of the bar and sat
+       on top of whatever tool was below it. */
+    min-height: 56px;
   }
 
   .topbar-right .topbar-page-count {
@@ -2259,30 +2262,41 @@ button:focus-visible {
 
 .annotation-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 20px;
+  flex-direction: column;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
-.annotation-toolbar-tools {
+/*
+ * Both rows scroll sideways rather than wrapping. Wrapping changed the
+ * toolbar's height as tools came and went, which shoved the page up and down
+ * mid-edit; a single row that scrolls keeps the page still at any width.
+ */
+.annotation-toolbar-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  padding: 8px 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+}
+
+.annotation-toolbar-row::-webkit-scrollbar {
+  display: none;
 }
 
 .annotation-tool {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-width: 68px;
-  padding: 8px 10px;
+  flex: 0 0 auto;
+  min-width: 62px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   font-size: 11px;
@@ -2296,44 +2310,93 @@ button:focus-visible {
   color: var(--color-text);
 }
 
+/* A tinted chip rather than a solid block: seven saturated buttons in a row
+   drowned out the document, which is the thing being worked on. */
 .annotation-tool.active {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--color-selection);
+  color: var(--color-primary-text);
+  font-weight: 600;
 }
 
 .annotation-toolbar-options {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-
-/* When the row is editing a selected mark rather than tool defaults, say so —
-   otherwise it is not obvious what a slider drag is about to change. */
-.annotation-toolbar-options.for-selection {
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-selection);
-  box-shadow: inset 0 0 0 1px var(--color-primary-border);
+  gap: 14px;
+  padding: 0 16px 8px;
+  /* Reserved so the row keeps its height when it has nothing to show. */
+  min-height: 42px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
 }
 
 .annotation-options-scope {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--color-primary);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.annotation-toolbar-options.for-selection .annotation-options-scope {
+  background: var(--color-selection);
+  color: var(--color-primary-text);
 }
 
 .annotation-options-hint {
   font-size: 12px;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
-.annotation-textstyle {
+.annotation-group {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+}
+
+.annotation-swatches {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.annotation-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.annotation-swatch:hover {
+  transform: scale(1.1);
+}
+
+.annotation-swatch.active {
+  border-color: var(--color-text);
+  transform: scale(1.12);
+}
+
+.annotation-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.annotation-field input[type='range'] {
+  width: 92px;
+}
+
+.annotation-field output {
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
 
 .annotation-font-select {
@@ -2369,46 +2432,6 @@ button:focus-visible {
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: #fff;
-}
-
-.annotation-swatches {
-  display: flex;
-  gap: 6px;
-}
-
-.annotation-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-full);
-  border: 2px solid var(--color-border);
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
-}
-
-.annotation-swatch:hover {
-  transform: scale(1.1);
-}
-
-.annotation-swatch.active {
-  border-color: var(--color-text);
-  transform: scale(1.12);
-}
-
-.annotation-size {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.annotation-size input[type='range'] {
-  width: 96px;
-}
-
-.annotation-size output {
-  min-width: 20px;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text);
 }
 
 /* === Edit tool: page rail + stage === */
@@ -2878,22 +2901,102 @@ button:focus-visible {
 }
 
 @media (max-width: 768px) {
-  .annotation-toolbar {
-    padding: 8px 12px;
+  .annotation-toolbar-row {
+    padding: 6px 10px;
+    gap: 2px;
+  }
+
+  .annotation-toolbar-options {
+    padding: 6px 10px;
+    gap: 12px;
+    min-height: 40px;
   }
 
   .annotation-tool {
-    min-width: 56px;
-    padding: 6px;
+    min-width: 54px;
+    padding: 6px 6px;
     font-size: 10px;
   }
 
-  .pdf-editor-rail {
+  .annotation-field input[type='range'] {
     width: 76px;
   }
 
+  /*
+   * A 76px vertical rail costs a fifth of a phone's width, and the page is the
+   * thing that needs the room. On small screens the pages become a horizontal
+   * filmstrip above the page instead.
+   */
+  .pdf-editor-body {
+    flex-direction: column;
+  }
+
+  .pdf-editor-rail {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    padding: 8px;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+    scrollbar-width: none;
+  }
+
+  .pdf-editor-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pdf-editor-rail-item {
+    flex: 0 0 auto;
+    width: 52px;
+  }
+
+  /* Leave room for the bottom tool bar and the download bar. */
   .pdf-editor-stage {
-    padding: 12px 12px 100px;
+    padding: 12px 12px 180px;
+  }
+
+  .pdf-editor-hint {
+    display: none;
+  }
+}
+
+/*
+ * Touch targets. The selection handles are comfortable with a mouse but too
+ * small for a fingertip, so they grow where the pointer is coarse.
+ */
+@media (pointer: coarse) {
+  .annotation-handle {
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+  }
+
+  .annotation-handle.resize {
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+  }
+
+  .annotation-tool {
+    min-height: 46px;
+  }
+
+  .annotation-swatch {
+    width: 26px;
+    height: 26px;
+  }
+
+  .annotation-style-btn,
+  .annotation-font-select {
+    height: 34px;
+  }
+
+  .annotation-field input[type='range'] {
+    height: 28px;
   }
 }
 

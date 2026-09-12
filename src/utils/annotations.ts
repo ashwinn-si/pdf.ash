@@ -36,6 +36,7 @@ export interface TextAnnotation {
   font: TextFont;
   bold: boolean;
   italic: boolean;
+  opacity: number;
 }
 
 export interface HighlightAnnotation {
@@ -46,6 +47,7 @@ export interface HighlightAnnotation {
   w: number;
   h: number;
   color: string;
+  opacity: number;
 }
 
 export interface PencilAnnotation {
@@ -54,6 +56,7 @@ export interface PencilAnnotation {
   points: Point[];
   color: string;
   strokeWidth: number;
+  opacity: number;
 }
 
 export interface CrossAnnotation {
@@ -64,6 +67,7 @@ export interface CrossAnnotation {
   y: number;
   size: number;
   color: string;
+  opacity: number;
 }
 
 export interface CheckAnnotation {
@@ -74,6 +78,7 @@ export interface CheckAnnotation {
   y: number;
   size: number;
   color: string;
+  opacity: number;
 }
 
 export interface SignatureAnnotation {
@@ -85,6 +90,7 @@ export interface SignatureAnnotation {
   h: number;
   /** PNG or JPEG data URL. */
   dataUrl: string;
+  opacity: number;
 }
 
 export type Annotation =
@@ -101,7 +107,28 @@ export type EditorTool = 'select' | AnnotationKind;
 export const INK_COLORS = ['#1f2937', '#dc2626', '#2563eb', '#16a34a'];
 export const HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#7dd3fc', '#fda4af'];
 
-export const HIGHLIGHT_OPACITY = 0.35;
+/**
+ * Starting opacity per kind. A highlight is translucent by definition — it has
+ * to let the text underneath show through — while ink and stamps start solid.
+ * Every kind can be adjusted from the toolbar afterwards.
+ */
+export const DEFAULT_OPACITY: Record<AnnotationKind, number> = {
+  highlight: 0.35,
+  text: 1,
+  pencil: 1,
+  cross: 1,
+  check: 1,
+  signature: 1,
+};
+
+/** Tolerates annotations created before opacity existed. */
+export function opacityOf(a: Annotation): number {
+  return typeof a.opacity === 'number' ? a.opacity : DEFAULT_OPACITY[a.kind];
+}
+
+export function withAnnotationOpacity(a: Annotation, opacity: number): Annotation {
+  return { ...a, opacity };
+}
 
 export const TEXT_FONTS: { id: TextFont; label: string; css: string }[] = [
   { id: 'helvetica', label: 'Helvetica', css: 'Helvetica, Arial, sans-serif' },
