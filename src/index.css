@@ -939,48 +939,6 @@ button:focus-visible {
   color: var(--color-text);
 }
 
-/* === Mobile Responsiveness for TopBar Filename === */
-@media (max-width: 768px) {
-  .topbar {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 12px 16px;
-    gap: 12px;
-  }
-
-  .topbar-left, .topbar-right {
-    flex: 0 0 auto;
-  }
-
-  .topbar-center {
-    order: 3;
-    flex: 1 1 100%;
-    padding: 0;
-    margin-top: 4px;
-  }
-
-  .topbar-filename-wrap {
-    max-width: 100%;
-  }
-
-  .topbar-filename-input {
-    background: var(--color-surface-hover);
-    border-style: dashed;
-    text-align: left;
-  }
-
-  .name-notification-toaster {
-    top: auto;
-    bottom: 80px;
-    right: 16px;
-    left: 16px;
-  }
-
-  .toaster-content {
-    max-width: 100%;
-  }
-}
-
 .bottombar-info {
   display: flex;
   align-items: center;
@@ -1343,163 +1301,6 @@ button:focus-visible {
   border-radius: var(--radius-md);
 }
 
-/* === Responsive Mobile Layout === */
-@media (max-width: 768px) {
-  .app-layout {
-    flex-direction: column-reverse; /* Bottom bar layout */
-  }
-
-  .sidebar {
-    width: 100% !important;
-    height: 80px;
-    flex-direction: row;
-    border-right: none;
-    border-top: 1px solid var(--color-border);
-    padding: 0 8px;
-    align-items: center;
-    justify-content: space-between;
-    z-index: var(--z-sticky);
-  }
-
-  .sidebar-logo,
-  .sidebar-page-count,
-  .sidebar-footer,
-  .sidebar-toggle-btn,
-  .sidebar-section-label {
-    display: none !important;
-  }
-
-  .sidebar-section {
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding: 0 16px;
-    justify-content: flex-start;
-    align-items: center;
-    overflow-x: auto;
-    gap: 16px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .sidebar-section::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sidebar-tool {
-    flex-direction: column;
-    width: auto;
-    padding: 8px 4px;
-    gap: 4px;
-    justify-content: center;
-    background: transparent !important;
-    min-height: 48px;
-  }
-
-  .sidebar-tool span:not(.sidebar-tool-icon) {
-    display: block !important;
-    font-size: 10px;
-    font-weight: 600;
-  }
-
-  .sidebar-tool-icon {
-    width: 24px;
-    height: 24px;
-  }
-
-  .sidebar-tool.active {
-    color: var(--color-primary-text) !important;
-  }
-
-  .sidebar-tool.active .sidebar-tool-icon {
-    color: var(--color-primary-text) !important;
-  }
-
-  .topbar {
-    padding: 0 16px;
-    /* A fixed height here cancelled the `height: auto` the wrapping rule
-       above depends on, so the filename row spilled out of the bar and sat
-       on top of whatever tool was below it. */
-    min-height: 56px;
-  }
-
-  .topbar-right .topbar-page-count {
-    display: none;
-  }
-
-  .workspace {
-    padding: 16px;
-    padding-bottom: 40px;
-  }
-
-  .workspace-grid {
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 12px;
-  }
-
-  .upload-zone-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .convert-format-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mobile-move-controls {
-    display: flex;
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    transform: translateY(-50%);
-    justify-content: space-between;
-    padding: 0 4px;
-    z-index: 10;
-    pointer-events: none; /* Let clicks pass through except on buttons */
-  }
-
-  .mobile-move-btn {
-    pointer-events: auto;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-full);
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid var(--color-border);
-    box-shadow: var(--shadow-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text);
-    transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
-  }
-
-  .mobile-move-btn:active {
-    background: var(--color-primary);
-    color: white;
-    transform: scale(0.95);
-  }
-
-  .page-thumbnail {
-    cursor: pointer;
-    touch-action: auto;
-  }
-
-  .page-thumbnail.dragging {
-    opacity: 0.5;
-  }
-
-  /* When rearrange is active on mobile */
-  .workspace-grid.rearrange-active .page-thumbnail {
-    cursor: grab;
-    touch-action: none;
-    border-color: var(--color-primary-border);
-  }
-
-  .workspace-grid.rearrange-active .page-thumbnail:active {
-    cursor: grabbing;
-  }
-}
-
 /* Hover-only affordances must stay reachable without hover: on coarse
    pointers (touch), always show inline page actions and the selection
    checkbox rather than hiding them behind a hover state. */
@@ -1513,26 +1314,6 @@ button:focus-visible {
 /* Mobile rearrange hint banner */
 .mobile-rearrange-hint {
   display: none;
-}
-
-@media (max-width: 768px) {
-  .mobile-rearrange-hint {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    margin-bottom: 12px;
-    background: var(--color-primary-tint);
-    border: 1px solid var(--color-primary-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-primary-text);
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .mobile-rearrange-hint svg {
-    flex-shrink: 0;
-  }
 }
 
 /* === Preview Modal === */
@@ -1702,34 +1483,6 @@ button:focus-visible {
   to { opacity: 1; }
 }
 
-@media (max-width: 640px) {
-  .preview-modal-content {
-    width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-  }
-
-  .preview-modal-header {
-    padding: 12px 16px;
-  }
-
-  .preview-image-container {
-    padding: 0;
-  }
-
-  .preview-nav-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 44px;
-    height: 44px;
-  }
-
-  .preview-nav-btn.prev { left: 10px; }
-  .preview-nav-btn.next { right: 10px; }
-}
-
 /* Fix for dnd-kit auto-scroll and touch behavior (desktop only) */
 @media (min-width: 769px) {
   .page-thumbnail {
@@ -1879,20 +1632,6 @@ button:focus-visible {
   background: var(--color-success-bg);
   border: 1px solid var(--color-success-border);
   color: var(--color-success);
-}
-
-@media (max-width: 768px) {
-  .unlock-panel {
-    margin: 16px auto;
-  }
-
-  .unlock-password-row {
-    flex-direction: column;
-  }
-
-  .unlock-submit-btn {
-    justify-content: center;
-  }
 }
 
 /* === Password field with show/hide toggle (shared by all password modals) === */
@@ -2247,7 +1986,9 @@ button:focus-visible {
 }
 
 /* === Edit tool: annotation toolbar === */
-.workspace-editor {
+/* Both classes, so this beats the responsive `.workspace` padding on merit
+   rather than relying on which rule happens to come later in the file. */
+.workspace.workspace-editor {
   padding: 0;
   overflow: hidden;
   display: flex;
@@ -2900,7 +2641,230 @@ button:focus-visible {
   color: #dc2626;
 }
 
+/* === Responsive: mobile layout ===
+   All max-width:768px rules live here, in one block. They were previously
+   spread across five separate blocks with the same query, which let two
+   rules for the same selector silently override each other. */
 @media (max-width: 768px) {
+  .topbar {
+    /* Wraps onto a second row for the filename, so it has to grow. A fixed
+       height here let that row spill out of the bar and sit on top of
+       whatever was below it. */
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .topbar-left, .topbar-right {
+    flex: 0 0 auto;
+  }
+
+  .topbar-center {
+    order: 3;
+    flex: 1 1 100%;
+    padding: 0;
+    margin-top: 4px;
+  }
+
+  .topbar-filename-wrap {
+    max-width: 100%;
+  }
+
+  .topbar-filename-input {
+    background: var(--color-surface-hover);
+    border-style: dashed;
+    text-align: left;
+  }
+
+  .name-notification-toaster {
+    top: auto;
+    bottom: 80px;
+    right: 16px;
+    left: 16px;
+  }
+
+  .toaster-content {
+    max-width: 100%;
+  }
+
+  .app-layout {
+    flex-direction: column-reverse; /* Bottom bar layout */
+  }
+
+  .sidebar {
+    width: 100% !important;
+    height: 80px;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--color-border);
+    padding: 0 8px;
+    align-items: center;
+    justify-content: space-between;
+    z-index: var(--z-sticky);
+  }
+
+  .sidebar-logo,
+  .sidebar-page-count,
+  .sidebar-footer,
+  .sidebar-toggle-btn,
+  .sidebar-section-label {
+    display: none !important;
+  }
+
+  .sidebar-section {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding: 0 16px;
+    justify-content: flex-start;
+    align-items: center;
+    overflow-x: auto;
+    gap: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-section::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-tool {
+    flex-direction: column;
+    width: auto;
+    padding: 8px 4px;
+    gap: 4px;
+    justify-content: center;
+    background: transparent !important;
+    min-height: 48px;
+  }
+
+  .sidebar-tool span:not(.sidebar-tool-icon) {
+    display: block !important;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .sidebar-tool-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .sidebar-tool.active {
+    color: var(--color-primary-text) !important;
+  }
+
+  .sidebar-tool.active .sidebar-tool-icon {
+    color: var(--color-primary-text) !important;
+  }
+
+  .topbar-right .topbar-page-count {
+    display: none;
+  }
+
+  .workspace {
+    padding: 16px;
+    padding-bottom: 40px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+  }
+
+  .upload-zone-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .convert-format-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-move-controls {
+    display: flex;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    justify-content: space-between;
+    padding: 0 4px;
+    z-index: 10;
+    pointer-events: none; /* Let clicks pass through except on buttons */
+  }
+
+  .mobile-move-btn {
+    pointer-events: auto;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text);
+    transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .mobile-move-btn:active {
+    background: var(--color-primary);
+    color: white;
+    transform: scale(0.95);
+  }
+
+  .page-thumbnail {
+    cursor: pointer;
+    touch-action: auto;
+  }
+
+  .page-thumbnail.dragging {
+    opacity: 0.5;
+  }
+
+  /* When rearrange is active on mobile */
+  .workspace-grid.rearrange-active .page-thumbnail {
+    cursor: grab;
+    touch-action: none;
+    border-color: var(--color-primary-border);
+  }
+
+  .workspace-grid.rearrange-active .page-thumbnail:active {
+    cursor: grabbing;
+  }
+
+  .mobile-rearrange-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--color-primary-tint);
+    border: 1px solid var(--color-primary-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-primary-text);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .mobile-rearrange-hint svg {
+    flex-shrink: 0;
+  }
+
+  .unlock-panel {
+    margin: 16px auto;
+  }
+
+  .unlock-password-row {
+    flex-direction: column;
+  }
+
+  .unlock-submit-btn {
+    justify-content: center;
+  }
+
   .annotation-toolbar-row {
     padding: 6px 10px;
     gap: 2px;
@@ -3211,6 +3175,32 @@ button:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .preview-modal-content {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .preview-modal-header {
+    padding: 12px 16px;
+  }
+
+  .preview-image-container {
+    padding: 0;
+  }
+
+  .preview-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+  }
+
+  .preview-nav-btn.prev { left: 10px; }
+  .preview-nav-btn.next { right: 10px; }
+
   .verify-facts > div {
     grid-template-columns: 1fr;
     gap: 2px;
