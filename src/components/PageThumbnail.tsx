@@ -1,6 +1,7 @@
 import { RotateCw, Trash2, Check } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { PageInfo } from '../utils/pdfRenderer';
 import type { Tool } from './Sidebar';
 
@@ -35,8 +36,8 @@ export function ThumbnailCard({
   isDragging?: boolean;
   isOverlay?: boolean;
   setNodeRef?: (node: HTMLElement | null) => void;
-  attributes?: any;
-  listeners?: any;
+  attributes?: DraggableAttributes;
+  listeners?: DraggableSyntheticListeners;
 }) {
   const showCheckbox = activeTool === 'split';
 

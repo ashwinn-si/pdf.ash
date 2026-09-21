@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { describeFailure } from '../utils/lazyModule';
+import { isPdfFile, downloadFile, describeLoadError } from '../utils/pdfOperations';
+import { decryptPdfBytes, QpdfError } from '../utils/qpdf';
 import { Upload, KeyRound, Loader2, CheckCircle2, AlertCircle, FileText, Eye, EyeOff } from 'lucide-react';
 
 interface UnlockPanelProps {
@@ -20,7 +22,7 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected && selected.type === 'application/pdf') {
+    if (selected && isPdfFile(selected)) {
       setFile(selected);
       setError('');
       setSuccess(false);
@@ -29,8 +31,11 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    // Never let this bubble to App's global drop handler — that would load
+    // the same file into the workspace behind this panel (#7).
+    e.stopPropagation();
     const dropped = e.dataTransfer.files[0];
-    if (dropped && dropped.type === 'application/pdf') {
+    if (dropped && isPdfFile(dropped)) {
       setFile(dropped);
       setError('');
       setSuccess(false);
@@ -38,7 +43,7 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
   };
 
   const handleUnlock = async () => {
-    if (!file || !password) return;
+    if (!file) return;
 
     setIsProcessing(true);
     setPhase('loading');
@@ -46,64 +51,21 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
     setSuccess(false);
 
     try {
-      // Import qpdf wasm
-      const createQPDF = (await import('qpdf-wasm-esm-embedded')).default;
-      setPhase('working');
-      
       const arrayBuffer = await file.arrayBuffer();
-      const inputBytes = new Uint8Array(arrayBuffer);
-      
-      // Initialize QPDF module
-      const qpdf: any = await createQPDF({
-        print: (text: string) => console.log('QPDF:', text),
-        printErr: (text: string) => console.error('QPDF Error:', text),
-      });
+      setPhase('working');
+      const unlockedBytes = await decryptPdfBytes(new Uint8Array(arrayBuffer), password);
 
-      // Write to virtual filesystem
-      qpdf.FS.writeFile('input.pdf', inputBytes);
-      
-      try {
-        // Execute qpdf command
-        qpdf.callMain([
-          `--password=${password}`,
-          '--decrypt',
-          'input.pdf',
-          'output.pdf'
-        ]);
-        
-        // Read decrypted file
-        const outputBytes = qpdf.FS.readFile('output.pdf');
-        const unlockedBuffer = outputBytes.buffer as ArrayBuffer;
-
-        setSuccess(true);
-
-        // Trigger download
-        const blob = new Blob([outputBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name.replace('.pdf', '_unlocked.pdf');
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 10000);
-
-        onUnlocked(unlockedBuffer, file.name);
-      } catch (cmdErr) {
-        console.error('QPDF command error:', cmdErr);
-        // If decryption fails, the output file won't exist or qpdf will throw
-        setError('Incorrect password or failed to decrypt. Please try again.');
-      }
-    } catch (err: any) {
+      setSuccess(true);
+      const unlockedName = file.name.replace(/\.pdf$/i, '') + '_unlocked.pdf';
+      downloadFile(unlockedBytes, unlockedName);
+      onUnlocked(unlockedBytes.buffer as ArrayBuffer, file.name);
+    } catch (err) {
       console.error('Unlock error:', err);
-      setError(
-        describeFailure(
-          err,
-          'An error occurred during decryption. The file may be corrupt or unsupported.'
-        )
-      );
+      if (err instanceof QpdfError && err.isPasswordError) {
+        setError('Incorrect password. Please try again.');
+      } else {
+        setError(describeFailure(err, describeLoadError(err)));
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -163,6 +125,9 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
         {file && (
           <div className="unlock-password-section">
             <label htmlFor="pdf-password">Enter PDF password</label>
+            <p className="unlock-password-hint">
+              Leave empty to remove print/copy restrictions from a file with no open password.
+            </p>
             <div className="unlock-password-row">
               <div className="password-field-wrap">
                 <input
@@ -190,7 +155,7 @@ export default function UnlockPanel({ onUnlocked }: UnlockPanelProps) {
               <button
                 className="unlock-submit-btn"
                 onClick={handleUnlock}
-                disabled={!password || isProcessing}
+                disabled={isProcessing}
               >
                 {isProcessing ? (
                   <>

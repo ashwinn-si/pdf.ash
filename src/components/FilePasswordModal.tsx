@@ -31,6 +31,22 @@ export default function FilePasswordModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
+  // Start clean every time this opens, and again if a second locked file
+  // replaces the first while the modal stays open — otherwise the next
+  // file's password field would carry over the previous one's value/error.
+  // Adjusted during render, matching the pattern SignatureModal uses.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  const [lastFileName, setLastFileName] = useState(fileName);
+  if (wasOpen !== isOpen || lastFileName !== fileName) {
+    setWasOpen(isOpen);
+    setLastFileName(fileName);
+    if (isOpen) {
+      setPassword('');
+      setShowPassword(false);
+      setInternalError('');
+    }
+  }
+
   if (!isOpen) return null;
 
   const handleConfirm = () => {

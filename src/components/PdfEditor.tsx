@@ -5,6 +5,7 @@ import AnnotationLayer from './AnnotationLayer';
 import SignatureModal from './SignatureModal';
 import { renderPageImage } from '../utils/pdfOperations';
 import { describeFailure } from '../utils/lazyModule';
+import { unsupportedChars } from '../utils/pdfText';
 import {
   INK_COLORS,
   HIGHLIGHT_COLORS,
@@ -45,6 +46,9 @@ interface RenderedPage {
 const RENDER_SCALE = 2;
 /** Signatures are placed at this width in points unless the user resizes. */
 const SIGNATURE_WIDTH = 160;
+/** Cap on `cacheRef` — each entry is a full-resolution rendered page, so a
+ * long document left open all session shouldn't grow this without bound. */
+const RENDER_CACHE_LIMIT = 20;
 
 const DEFAULT_SIZES: Record<'text' | 'pencil' | 'cross' | 'check', number> = {
   text: 14,
@@ -99,7 +103,12 @@ export default function PdfEditor({
     renderPageImage(page.fileIndex, page.pageIndex, page.rotation, RENDER_SCALE)
       .then((result) => {
         if (cancelled) return;
-        cacheRef.current.set(cacheKey, result);
+        const cache = cacheRef.current;
+        if (cache.size >= RENDER_CACHE_LIMIT) {
+          const oldest = cache.keys().next().value;
+          if (oldest !== undefined) cache.delete(oldest);
+        }
+        cache.set(cacheKey, result);
         setRendered(result);
       })
       .catch((err) => {
@@ -257,6 +266,10 @@ export default function PdfEditor({
         : null;
 
   const selectedText = selected?.kind === 'text' ? selected : null;
+  // Characters the selected (or being-typed) text mark has that the base-14
+  // fonts can't draw — warned about here so a download doesn't silently
+  // substitute them as the first sign anything changed.
+  const unsupportedTextChars = selectedText ? unsupportedChars(selectedText.text) : [];
 
   // Opacity applies to every kind, so unlike size it has no per-kind gating.
   const toolbarOpacity = selected
@@ -427,6 +440,13 @@ export default function PdfEditor({
                 onRequestSignature={setSignatureAt}
               />
             </div>
+          )}
+
+          {unsupportedTextChars.length > 0 && (
+            <p className="pdf-editor-unicode-hint">
+              {unsupportedTextChars.slice(0, 5).join(', ')} will be replaced — the built-in PDF
+              fonts can't draw them.
+            </p>
           )}
 
           <p className="pdf-editor-hint">

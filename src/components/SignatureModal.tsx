@@ -6,8 +6,8 @@ import {
   deleteSavedSignature,
   trimTransparent,
   whiteToTransparent,
-  fileToDataUrl,
 } from '../utils/signatureStore';
+import { sniffFileKind } from '../utils/pdfOperations';
 
 type Tab = 'upload' | 'draw' | 'saved';
 
@@ -25,6 +25,30 @@ function measure(dataUrl: string): Promise<{ width: number; height: number }> {
     img.onerror = () => reject(new Error('Could not read that image'));
     img.src = dataUrl;
   });
+}
+
+/** Longer side a signature photo is downscaled to before any further
+ * processing — a full-resolution phone photo is far more detail than a
+ * signature needs, and wastes time in the background-removal pass. */
+const MAX_SIGNATURE_DIMENSION = 1600;
+
+/** Decode `file` through the browser and hand back a same-size-or-smaller PNG
+ * data URL, so every downstream step (background removal, trimming, saving)
+ * works with a manageable image regardless of what the camera produced. */
+async function fileToProcessedDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const longerSide = Math.max(bitmap.width, bitmap.height);
+    const scale = longerSide > MAX_SIGNATURE_DIMENSION ? MAX_SIGNATURE_DIMENSION / longerSide : 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  } finally {
+    bitmap.close();
+  }
 }
 
 export default function SignatureModal({ isOpen, onClose, onConfirm }: SignatureModalProps) {
@@ -88,13 +112,14 @@ export default function SignatureModal({ isOpen, onClose, onConfirm }: Signature
 
   const handleFile = useCallback(async (file: File | undefined) => {
     if (!file) return;
-    if (!/^image\/(png|jpeg)$/.test(file.type)) {
-      setError('Please choose a PNG or JPG image.');
+    const kind = await sniffFileKind(file);
+    if (kind !== 'png' && kind !== 'jpeg' && kind !== 'webp') {
+      setError('Please choose a PNG, JPG, or WebP image.');
       return;
     }
     setError('');
     try {
-      setRawUpload(await fileToDataUrl(file));
+      setRawUpload(await fileToProcessedDataUrl(file));
     } catch {
       setError('Could not read that file.');
     }
@@ -243,7 +268,7 @@ export default function SignatureModal({ isOpen, onClose, onConfirm }: Signature
                   id={inputId}
                   className="signature-file-input"
                   type="file"
-                  accept="image/png,image/jpeg"
+                  accept="image/png,image/jpeg,image/webp"
                   onChange={(e) => {
                     handleFile(e.target.files?.[0]);
                     e.target.value = '';

@@ -30,6 +30,20 @@ export default function PasswordModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
+  // Start clean every time this opens — a password typed for a previous
+  // download must never resurface for the next one. Adjusted during render,
+  // matching the pattern SignatureModal uses for the same purpose.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setPassword('');
+      setConfirmPassword('');
+      setShowPassword(false);
+      setError('');
+    }
+  }
+
   if (!isOpen) return null;
 
   const handleConfirm = () => {

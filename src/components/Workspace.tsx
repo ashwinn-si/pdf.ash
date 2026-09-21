@@ -19,7 +19,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, RotateCw, Trash2, GripVertical } from 'lucide-react';
 import PageThumbnail, { ThumbnailCard } from './PageThumbnail';
 import UploadZone from './UploadZone';
-import SplitPanel from './SplitPanel';
+import SplitPanel, { type SplitMode } from './SplitPanel';
 import ConvertPanel from './ConvertPanel';
 import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
@@ -34,6 +34,7 @@ interface WorkspaceProps {
   pages: PageInfo[];
   activeTool: Tool;
   onFilesSelected: (files: File[]) => void;
+  onFilesRejected?: (names: string[]) => void;
   onReorder: (event: DragEndEvent) => void;
   onRotate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -41,8 +42,8 @@ interface WorkspaceProps {
   onMovePage: (id: string, direction: 'left' | 'right') => void;
   splitRange: string;
   onSplitRangeChange: (range: string) => void;
-  splitMode: 'range' | 'individual';
-  onSplitModeChange: (mode: 'range' | 'individual') => void;
+  splitMode: SplitMode;
+  onSplitModeChange: (mode: SplitMode) => void;
   convertFormat: ConvertFormat;
   onConvertFormatChange: (format: ConvertFormat) => void;
   compressionQuality: number;
@@ -57,6 +58,7 @@ export default function Workspace({
   pages,
   activeTool,
   onFilesSelected,
+  onFilesRejected,
   onReorder,
   onRotate,
   onDelete,
@@ -172,7 +174,7 @@ export default function Workspace({
   if (pages.length === 0) {
     return (
       <div className="workspace">
-        <UploadZone onFilesSelected={onFilesSelected} />
+        <UploadZone onFilesSelected={onFilesSelected} onFilesRejected={onFilesRejected} />
       </div>
     );
   }
@@ -196,6 +198,7 @@ export default function Workspace({
       {activeTool === 'split' && (
         <SplitPanel
           totalPages={pages.length}
+          selectedCount={pages.filter((p) => p.selected).length}
           splitRange={splitRange}
           onSplitRangeChange={onSplitRangeChange}
           splitMode={splitMode}

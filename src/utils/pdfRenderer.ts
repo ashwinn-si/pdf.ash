@@ -1,4 +1,4 @@
-import { pdfjsLib } from './pdfjs';
+import { openPdf } from './pdfjs';
 import type { Annotation } from './annotations';
 
 export interface PageInfo {
@@ -14,41 +14,64 @@ export interface PageInfo {
   annotations?: Annotation[];
 }
 
+/** Info about an EXIF/metadata field pdf.js exposes as `Object`, not a typed
+ * interface — only the one property this app reads is named here. */
+interface PdfInfo {
+  EncryptFilterName?: string | null;
+}
+
 /**
  * Renders all pages of a PDF file as thumbnail data URLs.
+ *
+ * Returns `encrypted` alongside the pages so the caller can tell a PDF that
+ * only opened because a password was supplied (or an owner-only "restricted"
+ * PDF that opens with none) from a plain unprotected one — pdf.js will
+ * happily render either, but pdf-lib operations on the same stored buffer
+ * later need decrypting first (#8).
  */
 export async function renderPdfThumbnails(
   file: File,
   fileIndex: number,
   scale: number = 0.5,
-  password?: string
-): Promise<PageInfo[]> {
+  password?: string,
+  onPage?: (done: number, total: number) => void
+): Promise<{ pages: PageInfo[]; encrypted: boolean }> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, password }).promise;
-  const pages: PageInfo[] = [];
+  const pdf = await openPdf(arrayBuffer, password).promise;
 
-  for (let i = 0; i < pdf.numPages; i++) {
-    const page = await pdf.getPage(i + 1);
-    const viewport = page.getViewport({ scale });
+  try {
+    const pages: PageInfo[] = [];
 
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    for (let i = 0; i < pdf.numPages; i++) {
+      const page = await pdf.getPage(i + 1);
+      const viewport = page.getViewport({ scale });
 
-    const ctx = canvas.getContext('2d')!;
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-    pages.push({
-      id: `${fileIndex}-${i}-${Date.now()}`,
-      fileIndex,
-      fileName: file.name,
-      pageIndex: i,
-      totalPagesInFile: pdf.numPages,
-      rotation: 0,
-      thumbnail: canvas.toDataURL('image/jpeg', 0.7),
-      selected: false,
-    });
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+
+      pages.push({
+        id: `${fileIndex}-${i}-${Date.now()}`,
+        fileIndex,
+        fileName: file.name,
+        pageIndex: i,
+        totalPagesInFile: pdf.numPages,
+        rotation: 0,
+        thumbnail: canvas.toDataURL('image/jpeg', 0.7),
+        selected: false,
+      });
+
+      onPage?.(i + 1, pdf.numPages);
+    }
+
+    const info = (await pdf.getMetadata()).info as PdfInfo;
+    const encrypted = !!info.EncryptFilterName;
+
+    return { pages, encrypted };
+  } finally {
+    pdf.destroy();
   }
-
-  return pages;
 }

@@ -9,24 +9,32 @@ import BottomBar from './components/BottomBar';
 import ProgressOverlay from './components/ProgressOverlay';
 import PasswordModal from './components/PasswordModal';
 import FilePasswordModal from './components/FilePasswordModal';
+import Toast, { type ToastData } from './components/Toast';
 import { Analytics } from '@vercel/analytics/react';
 import {
   storeFileBuffer,
+  getFileBuffer,
   buildPdf,
   splitPdf,
+  extractPages,
   compressPdf,
   parseRanges,
   downloadFile,
-  downloadMultipleFiles,
+  downloadFilesOrZip,
   convertPdfToImages,
   convertPdfToText,
   imageToPdfBuffer,
   lockPdfBytes,
   isValidFile,
+  isPdfFile,
   isImageFile,
   isMarkdownFile,
+  sniffFileKind,
+  describeLoadError,
+  ACCEPT_ATTRIBUTE,
 } from './utils/pdfOperations';
 import { markdownToPdfBuffer } from './utils/markdownToPdf';
+import { decryptPdfBytes } from './utils/qpdf';
 import {
   createInitialHistory,
   pushState,
@@ -41,9 +49,16 @@ import {
 import './App.css';
 
 import type { ConvertFormat } from './components/ConvertPanel';
+import type { SplitMode } from './components/SplitPanel';
 import { renderPdfThumbnails, type PageInfo } from './utils/pdfRenderer';
 import type { Annotation } from './utils/annotations';
 import { sendAnalytics } from './utils/analytics';
+
+/** A file the upload flow could not add, for the failure toast. */
+interface UploadFailure {
+  fileName: string;
+  reason: string;
+}
 
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>('merge');
@@ -53,19 +68,22 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [splitRange, setSplitRange] = useState('');
-  const [splitMode, setSplitMode] = useState<'range' | 'individual'>('range');
+  const [splitMode, setSplitMode] = useState<SplitMode>('range');
   const [convertFormat, setConvertFormat] = useState<ConvertFormat>('png');
   const [compressionQuality, setCompressionQuality] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState({ message: 'Loading files…', percent: 0 });
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<{ file: File; fileIndex: number }[]>([]);
   const [filePasswordError, setFilePasswordError] = useState('');
   const [isDecryptingFile, setIsDecryptingFile] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
 
   const fileCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
+  const toastIdRef = useRef(0);
 
   // Send analytics when component mounts
   useEffect(() => {
@@ -73,6 +91,41 @@ function App() {
   }, []);
 
   const pages = history.present;
+  const selectedCount = pages.filter(p => p.selected).length;
+
+  const showToast = useCallback((kind: ToastData['kind'], message: string, details?: string[]) => {
+    toastIdRef.current += 1;
+    setToast({ id: toastIdRef.current, kind, message, details });
+  }, []);
+
+  const showFailureToast = useCallback(
+    (failures: UploadFailure[]) => {
+      if (failures.length === 0) return;
+      if (failures.length === 1) {
+        showToast('error', `${failures[0].fileName} — ${failures[0].reason}`);
+      } else {
+        showToast(
+          'error',
+          `${failures.length} files couldn't be added`,
+          failures.map(f => `${f.fileName} — ${f.reason}`)
+        );
+      }
+    },
+    [showToast]
+  );
+
+  // Split's "extract selected" mode only makes sense while pages are
+  // selected — if the selection is cleared out from under it, fall back to
+  // page ranges rather than leaving an option chosen that does nothing.
+  // Adjusted during render (not an effect) so it lands in the same paint as
+  // the selection change instead of a visible extra frame.
+  const [lastSelectedCount, setLastSelectedCount] = useState(selectedCount);
+  if (selectedCount !== lastSelectedCount) {
+    setLastSelectedCount(selectedCount);
+    if (selectedCount === 0 && splitMode === 'selected') {
+      setSplitMode('range');
+    }
+  }
 
   const updatePages = useCallback((newPages: PageInfo[]) => {
     setHistory(prev => pushState(prev, newPages));
@@ -86,24 +139,68 @@ function App() {
     setHistory(prev => historyRedo(prev));
   }, []);
 
-  // File upload handler
+  // Ctrl/Cmd+Z undo, Ctrl+Y or Ctrl/Cmd+Shift+Z redo — standard shortcuts most
+  // desktop editors already support. Ignored while typing anywhere, and while
+  // the Edit tool's own text box is open, so this never steals a keystroke.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((key === 'y' && !e.shiftKey) || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // File upload handler. Each file gets its own try/catch so one bad or
+  // unrecognised file never drops the rest of the batch (#9), and pages are
+  // added with a functional update so two uploads fired close together both
+  // land instead of one clobbering the other (#5).
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
       setIsLoading(true);
-      const lockedFiles: { file: File; fileIndex: number }[] = [];
-      try {
-        const newPages: PageInfo[] = [...pages];
+      setLoadingProgress({ message: `Loading ${files.length} file${files.length !== 1 ? 's' : ''}…`, percent: 0 });
 
-        for (const file of files) {
+      const batchPages: PageInfo[] = [];
+      const lockedFiles: { file: File; fileIndex: number }[] = [];
+      const failures: UploadFailure[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
           const fileIndex = fileCountRef.current++;
 
           let buffer: ArrayBuffer;
-          if (isImageFile(file)) {
+          if (isPdfFile(file)) {
+            buffer = await file.arrayBuffer();
+          } else if (isImageFile(file)) {
             buffer = await imageToPdfBuffer(file);
           } else if (isMarkdownFile(file)) {
             buffer = await markdownToPdfBuffer(file);
           } else {
-            buffer = await file.arrayBuffer();
+            // Name and MIME didn't decide — sniff the actual bytes before
+            // giving up on the file (#3, #4).
+            const kind = await sniffFileKind(file);
+            if (kind === 'pdf') {
+              buffer = await file.arrayBuffer();
+            } else if (kind === 'png' || kind === 'jpeg' || kind === 'webp') {
+              buffer = await imageToPdfBuffer(file);
+            } else {
+              failures.push({ fileName: file.name, reason: 'unsupported file type' });
+              continue;
+            }
           }
 
           storeFileBuffer(fileIndex, buffer);
@@ -115,30 +212,60 @@ function App() {
           });
 
           try {
-            const thumbnails = await renderPdfThumbnails(pdfFile, fileIndex);
-            newPages.push(...thumbnails);
-          } catch (err: any) {
-            if (err.name === 'PasswordException') {
+            const { pages: thumbnails, encrypted } = await renderPdfThumbnails(
+              pdfFile,
+              fileIndex,
+              0.5,
+              undefined,
+              (done, total) => {
+                setLoadingProgress({
+                  message: `Loading ${file.name} (${i + 1} of ${files.length}) — page ${done} of ${total}`,
+                  percent: Math.round(((i + done / total) / files.length) * 100),
+                });
+              }
+            );
+
+            if (encrypted) {
+              // Owner-password-only "restricted" PDF: pdf.js opened it with no
+              // password, but pdf-lib still refuses the buffer as encrypted —
+              // decrypt it now so Merge/Compress/Edit work later (#8).
+              const decrypted = await decryptPdfBytes(new Uint8Array(buffer), '');
+              storeFileBuffer(
+                fileIndex,
+                decrypted.buffer.slice(
+                  decrypted.byteOffset,
+                  decrypted.byteOffset + decrypted.byteLength
+                ) as ArrayBuffer
+              );
+            }
+
+            batchPages.push(...thumbnails);
+          } catch (err) {
+            if (err instanceof Error && err.name === 'PasswordException') {
               lockedFiles.push({ file: pdfFile, fileIndex });
             } else {
               throw err;
             }
           }
+        } catch (err) {
+          console.error('Error loading file:', file.name, err);
+          failures.push({ fileName: file.name, reason: describeLoadError(err) });
         }
-
-        updatePages(newPages);
-
-        if (lockedFiles.length > 0) {
-          setPendingFiles(prev => [...prev, ...lockedFiles]);
-        }
-      } catch (err) {
-        console.error('Error loading PDFs:', err);
-        alert('Error loading PDF files. Please try again.');
-      } finally {
-        setIsLoading(false);
       }
+
+      if (batchPages.length > 0) {
+        setHistory(prev => pushState(prev, [...prev.present, ...batchPages]));
+      }
+      if (lockedFiles.length > 0) {
+        setPendingFiles(prev => [...prev, ...lockedFiles]);
+      }
+      if (failures.length > 0) {
+        showFailureToast(failures);
+      }
+
+      setIsLoading(false);
     },
-    [pages, updatePages]
+    [showFailureToast]
   );
 
   // Clipboard paste handler
@@ -148,12 +275,16 @@ function App() {
       if (!items) return;
 
       const files: File[] = [];
+      const rejected: File[] = [];
 
       for (let i = 0; i < items.length; i++) {
         if (items[i].kind === 'file') {
           const file = items[i].getAsFile();
-          if (file && isValidFile(file)) {
+          if (!file) continue;
+          if (isValidFile(file)) {
             files.push(file);
+          } else {
+            rejected.push(file);
           }
         }
       }
@@ -161,11 +292,14 @@ function App() {
       if (files.length > 0) {
         handleFilesSelected(files);
       }
+      if (rejected.length > 0) {
+        showFailureToast(rejected.map(f => ({ fileName: f.name, reason: 'unsupported file type' })));
+      }
     };
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [handleFilesSelected]);
+  }, [handleFilesSelected, showFailureToast]);
 
   const handleFilePasswordConfirm = useCallback(
     async (password: string) => {
@@ -176,20 +310,34 @@ function App() {
       setFilePasswordError('');
 
       try {
-        const thumbnails = await renderPdfThumbnails(
+        const { pages: thumbnails } = await renderPdfThumbnails(
           current.file,
           current.fileIndex,
           0.5,
           password
         );
-        // Wait for the state update or just use the current present
+
+        // The stored buffer is still encrypted at this point — decrypt it so
+        // pdf-lib (Merge/Compress/Edit) and later pdf.js calls both work (#8).
+        const buffer = getFileBuffer(current.fileIndex);
+        if (buffer) {
+          const decrypted = await decryptPdfBytes(new Uint8Array(buffer), password);
+          storeFileBuffer(
+            current.fileIndex,
+            decrypted.buffer.slice(
+              decrypted.byteOffset,
+              decrypted.byteOffset + decrypted.byteLength
+            ) as ArrayBuffer
+          );
+        }
+
         setHistory(prev => pushState(prev, [...prev.present, ...thumbnails]));
         setPendingFiles(prev => prev.slice(1));
-      } catch (err: any) {
-        if (err.name === 'PasswordException') {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'PasswordException') {
           setFilePasswordError('Incorrect password. Please try again.');
         } else {
-          setFilePasswordError('Failed to load the file. It may be corrupt.');
+          setFilePasswordError(describeLoadError(err));
         }
       } finally {
         setIsDecryptingFile(false);
@@ -327,10 +475,19 @@ function App() {
           case 'edit':
           case 'imageToPdf':
           case 'compress': {
-            let data =
-              activeTool === 'compress'
-                ? await compressPdf(pages, compressionQuality / 100, setProgress)
-                : await buildPdf(pages, setProgress);
+            let data: Uint8Array;
+            if (activeTool === 'compress') {
+              const result = await compressPdf(pages, compressionQuality / 100, setProgress);
+              data = result.data;
+              if (result.alreadyOptimal) {
+                showToast(
+                  'notice',
+                  'This PDF is already well optimised — downloaded without further compression.'
+                );
+              }
+            } else {
+              data = await buildPdf(pages, setProgress);
+            }
 
             if (password) {
               data = await lockPdfBytes(data, password);
@@ -358,13 +515,26 @@ function App() {
           }
 
           case 'split': {
+            if (splitMode === 'selected') {
+              const selected = pages.filter(p => p.selected);
+              const data = await extractPages(selected, setProgress);
+              const trimmed = customFilename.trim();
+              const filename = trimmed
+                ? trimmed.toLowerCase().endsWith('.pdf')
+                  ? trimmed
+                  : `${trimmed}.pdf`
+                : 'extracted.pdf';
+              downloadFile(data, filename);
+              break;
+            }
+
             let ranges: number[][];
             if (splitMode === 'individual') {
               ranges = pages.map((_, i) => [i]);
             } else {
               ranges = parseRanges(splitRange, pages.length);
               if (ranges.length === 0) {
-                alert('Please enter valid page ranges (e.g., "1-3, 4-6")');
+                showToast('error', 'Please enter valid page ranges (e.g., "1-3, 4-6")');
                 setIsProcessing(false);
                 return;
               }
@@ -376,7 +546,8 @@ function App() {
               ...f,
               name: customFilename.trim() ? `${prefix}_${i + 1}.pdf` : f.name
             }));
-            await downloadMultipleFiles(renamedFiles);
+            const zipName = customFilename.trim() ? `${prefix}.zip` : 'split.zip';
+            await downloadFilesOrZip(renamedFiles, zipName);
             break;
           }
 
@@ -395,13 +566,13 @@ function App() {
         }
       } catch (err) {
         console.error('Processing error:', err);
-        alert('An error occurred during processing. Please try again.');
+        showToast('error', `Something went wrong — ${describeLoadError(err)}.`);
       } finally {
         setIsProcessing(false);
         setProgress(0);
       }
     },
-    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, customFilename]
+    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, customFilename, showToast]
   );
 
   // Process button handler – for merge/rearrange, show password modal first
@@ -433,35 +604,34 @@ function App() {
     handleProcess();
   }, [handleProcess]);
 
-  // Unlock handler
-  const handleUnlocked = useCallback((_buffer: ArrayBuffer, _fileName: string) => {
-    // The UnlockPanel handles the download itself.
-    // Optionally, we could load the unlocked PDF into the workspace here.
-  }, []);
-
-  const selectedCount = pages.filter(p => p.selected).length;
+  // Unlock handler — UnlockPanel handles its own download; nothing to do here.
+  const handleUnlocked = useCallback(() => {}, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (activeTool === 'unlock' || activeTool === 'verify') return;
     if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
       dragCounter.current++;
       setIsDraggingFile(true);
     }
-  }, []);
+  }, [activeTool]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (activeTool === 'unlock' || activeTool === 'verify') return;
     if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
       dragCounter.current--;
       if (dragCounter.current === 0) {
         setIsDraggingFile(false);
       }
     }
-  }, []);
+  }, [activeTool]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    // Always prevented, everywhere — otherwise the browser navigates away to
+    // show the dropped file instead of letting the app handle it.
     e.preventDefault();
     e.stopPropagation();
   }, []);
@@ -473,12 +643,22 @@ function App() {
       setIsDraggingFile(false);
       dragCounter.current = 0;
 
-      const files = Array.from(e.dataTransfer.files).filter(isValidFile);
+      // The Unlock and Verify tools have their own dedicated drop zones — a
+      // drop anywhere else on the page while they're active shouldn't load
+      // files into the workspace behind them (#7).
+      if (activeTool === 'unlock' || activeTool === 'verify') return;
+
+      const allFiles = Array.from(e.dataTransfer.files);
+      const files = allFiles.filter(isValidFile);
+      const rejected = allFiles.filter(f => !isValidFile(f));
       if (files.length > 0) {
         handleFilesSelected(files);
       }
+      if (rejected.length > 0) {
+        showFailureToast(rejected.map(f => ({ fileName: f.name, reason: 'unsupported file type' })));
+      }
     },
-    [handleFilesSelected]
+    [activeTool, handleFilesSelected, showFailureToast]
   );
 
   return (
@@ -518,6 +698,9 @@ function App() {
           pages={pages}
           activeTool={activeTool}
           onFilesSelected={handleFilesSelected}
+          onFilesRejected={(names) =>
+            showFailureToast(names.map(name => ({ fileName: name, reason: 'unsupported file type' })))
+          }
           onReorder={handleReorder}
           onRotate={handleRotate}
           onDelete={handleDelete}
@@ -542,6 +725,7 @@ function App() {
             pageCount={pages.length}
             selectedCount={selectedCount}
             activeTool={activeTool}
+            splitMode={splitMode}
             onProcess={handleProcessClick}
             isProcessing={isProcessing}
             hasPages={pages.length > 0}
@@ -553,14 +737,16 @@ function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.md,.markdown"
+        accept={ACCEPT_ATTRIBUTE}
         multiple
         onChange={handleFileInputChange}
         style={{ display: 'none' }}
       />
 
       {/* Loading overlay for initial file upload */}
-      {isLoading && <ProgressOverlay progress={50} message="Loading PDF pages..." />}
+      {isLoading && (
+        <ProgressOverlay progress={loadingProgress.percent} message={loadingProgress.message} />
+      )}
 
       {/* Processing overlay */}
       {isProcessing && <ProgressOverlay progress={progress} />}
@@ -594,6 +780,17 @@ function App() {
         isProcessing={isDecryptingFile}
         error={filePasswordError}
       />
+
+      {toast && (
+        <Toast
+          key={toast.id}
+          id={toast.id}
+          kind={toast.kind}
+          message={toast.message}
+          details={toast.details}
+          onDismiss={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

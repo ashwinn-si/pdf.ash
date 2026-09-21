@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Upload,
   Undo2,
@@ -39,18 +39,22 @@ export default function TopBar({
   onFilenameChange,
 }: TopBarProps) {
   const [showToaster, setShowToaster] = useState(false);
-  const hasShownToaster = useRef(false);
+  const [hasShownToaster, setHasShownToaster] = useState(false);
+
+  // Show the filename tip once, the first time files are added this session —
+  // a one-time coach mark, not a recurring interruption. Adjusted during
+  // render (the same pattern SignatureModal uses for its own open/close
+  // reset) rather than setState inside an effect.
+  if (hasPages && !hasShownToaster) {
+    setHasShownToaster(true);
+    setShowToaster(true);
+  }
 
   useEffect(() => {
-    // Show the filename tip once, the first time files are added this
-    // session — a one-time coach mark, not a recurring interruption.
-    if (hasPages && !hasShownToaster.current) {
-      hasShownToaster.current = true;
-      setShowToaster(true);
-      const timer = setTimeout(() => setShowToaster(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [hasPages]);
+    if (!showToaster) return;
+    const timer = setTimeout(() => setShowToaster(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showToaster]);
 
   return (
     <>

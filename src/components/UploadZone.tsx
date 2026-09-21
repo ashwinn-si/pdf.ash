@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, FileText } from 'lucide-react';
-import { isValidFile } from '../utils/pdfOperations';
+import { isValidFile, ACCEPT_ATTRIBUTE } from '../utils/pdfOperations';
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
+  onFilesRejected?: (names: string[]) => void;
 }
 
-export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
+export default function UploadZone({ onFilesSelected, onFilesRejected }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -43,12 +44,17 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       setIsDragging(false);
       dragCounter.current = 0;
 
-      const files = Array.from(e.dataTransfer.files).filter(isValidFile);
+      const allFiles = Array.from(e.dataTransfer.files);
+      const files = allFiles.filter(isValidFile);
       if (files.length > 0) {
         onFilesSelected(files);
       }
+      const rejected = allFiles.filter((f) => !isValidFile(f));
+      if (rejected.length > 0) {
+        onFilesRejected?.(rejected.map((f) => f.name));
+      }
     },
-    [onFilesSelected]
+    [onFilesSelected, onFilesRejected]
   );
 
   const handleFileInput = useCallback(
@@ -75,7 +81,7 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.md,.markdown"
+        accept={ACCEPT_ATTRIBUTE}
         multiple
         onChange={handleFileInput}
         style={{ display: 'none' }}
@@ -100,7 +106,7 @@ export default function UploadZone({ onFilesSelected }: UploadZoneProps) {
       </button>
 
       <div className="upload-zone-formats">
-        Supports .pdf, .jpg, .jpeg, .png, .md files • Multiple files allowed
+        Supports PDF, JPG/JFIF, PNG, WebP, Markdown • Multiple files allowed
       </div>
     </div>
   );

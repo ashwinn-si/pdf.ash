@@ -14,6 +14,7 @@ import {
   type Point,
   type TextFont,
 } from './annotations';
+import { toWinAnsi } from './pdfText';
 
 /**
  * Resolves a base-14 font variant on demand. Callers cache, so a document with
@@ -237,7 +238,10 @@ export async function stampAnnotations(
       }
 
       case 'text': {
-        const lines = a.text.split('\n');
+        // The base-14 fonts only encode WinAnsi — ₹, →, emoji etc. otherwise
+        // throw "WinAnsi cannot encode ..." and abort the whole download (#2).
+        const { text: safeText } = toWinAnsi(a.text);
+        const lines = safeText.split('\n');
         const lineHeight = a.fontSize * 1.2;
         const color = colorOf(a.color);
         const font = await fontFor(a.font, a.bold, a.italic);

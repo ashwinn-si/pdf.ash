@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { toWinAnsi } from './pdfText';
 
 /**
  * Renders a Markdown (.md) file into a paginated PDF, entirely client-side.
@@ -187,11 +188,30 @@ function pickFont(run: Run, fonts: Fonts): PDFFont {
 }
 
 /**
+ * Decode a Markdown file's bytes to text, honouring a UTF-16 BOM. `File.text()`
+ * always assumes UTF-8, which turns a UTF-16 file (common from Windows
+ * Notepad's old default) into garbled text instead of failing outright — not
+ * a crash, but cheap to fix now that the bytes are already being read.
+ * `TextDecoder('utf-8')` on a plain UTF-8 file strips its BOM if present, so
+ * that case needs no special handling.
+ */
+async function decodeMarkdownSource(mdFile: File): Promise<string> {
+  const bytes = new Uint8Array(await mdFile.arrayBuffer());
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+/**
  * Converts a Markdown file into a rendered, paginated PDF ArrayBuffer,
  * following the same "convert on upload" pattern as imageToPdfBuffer.
  */
 export async function markdownToPdfBuffer(mdFile: File): Promise<ArrayBuffer> {
-  const source = await mdFile.text();
+  const source = await decodeMarkdownSource(mdFile);
   const blocks = parseMarkdown(source);
 
   const pdfDoc = await PDFDocument.create();
@@ -215,6 +235,29 @@ export async function markdownToPdfBuffer(mdFile: File): Promise<ArrayBuffer> {
     if (y - height < MARGIN) newPage();
   };
 
+  /**
+   * Splits `text` into pieces that each fit within `maxWidth`, one character
+   * at a time. Only used for a single word that's already wider than the
+   * whole line on its own (e.g. a long URL or an unbroken identifier) — the
+   * normal case never calls this, since `words` are joined back with spaces
+   * by the caller's line-wrapping loop.
+   */
+  const hardBreakWord = (text: string, font: PDFFont, size: number, maxWidth: number): string[] => {
+    const pieces: string[] = [];
+    let current = '';
+    for (const ch of text) {
+      const candidate = current + ch;
+      if (current && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+        pieces.push(current);
+        current = ch;
+      } else {
+        current = candidate;
+      }
+    }
+    if (current) pieces.push(current);
+    return pieces;
+  };
+
   /** Word-wraps styled runs into lines and draws them, advancing `y`. */
   const drawRuns = (
     runs: Run[],
@@ -230,8 +273,19 @@ export async function markdownToPdfBuffer(mdFile: File): Promise<ArrayBuffer> {
     for (const run of runs) {
       const font = pickFont(run, fonts);
       const size = run.code ? fontSize * 0.92 : fontSize;
-      for (const w of run.text.split(/\s+/).filter(Boolean)) {
-        words.push({ text: w, font, size, width: font.widthOfTextAtSize(w, size) });
+      for (const raw of run.text.split(/\s+/).filter(Boolean)) {
+        const w = toWinAnsi(raw).text;
+        const width = font.widthOfTextAtSize(w, size);
+        if (width > maxWidth) {
+          // A single word wider than the whole line would otherwise sit on
+          // its own line and run off the page edge forever — break it up so
+          // it actually wraps.
+          for (const piece of hardBreakWord(w, font, size, maxWidth)) {
+            words.push({ text: piece, font, size, width: font.widthOfTextAtSize(piece, size) });
+          }
+        } else {
+          words.push({ text: w, font, size, width });
+        }
       }
     }
     if (words.length === 0) return;
@@ -290,7 +344,7 @@ export async function markdownToPdfBuffer(mdFile: File): Promise<ArrayBuffer> {
       case 'listitem': {
         const indentX = MARGIN + block.indent * 18;
         ensureSpace(15.5);
-        page.drawText(block.marker, { x: indentX, y: y - 11, size: 11, font: fonts.regular, color: MUTED_COLOR });
+        page.drawText(toWinAnsi(block.marker).text, { x: indentX, y: y - 11, size: 11, font: fonts.regular, color: MUTED_COLOR });
         drawRuns(block.runs, indentX + 16, CONTENT_WIDTH - (indentX + 16 - MARGIN), 11, 15.5);
         y -= 2;
         break;
@@ -298,20 +352,44 @@ export async function markdownToPdfBuffer(mdFile: File): Promise<ArrayBuffer> {
 
       case 'code': {
         const lineHeight = 13;
-        const boxHeight = Math.max(lineHeight, block.lines.length * lineHeight) + 16;
-        ensureSpace(boxHeight + 8);
-        page.drawRectangle({ x: MARGIN, y: y - boxHeight, width: CONTENT_WIDTH, height: boxHeight, color: CODE_BG });
-        let cy = y - 12;
-        for (const raw of block.lines) {
-          // Fall back gracefully if a single line is wider than the box —
-          // truncate rather than overflow the background rectangle.
-          let line = raw;
-          const maxChars = 100;
-          if (line.length > maxChars) line = line.slice(0, maxChars - 1) + '…';
-          page.drawText(line, { x: MARGIN + 12, y: cy, size: 10, font: fonts.mono, color: CODE_TEXT });
-          cy -= lineHeight;
+        const boxPad = 16; // matches the original single-page box: 12pt top inset + ~4pt bottom breathing room
+        const lines = block.lines.length > 0 ? block.lines : [''];
+
+        let idx = 0;
+        while (idx < lines.length) {
+          // How many lines fit in whatever room is left on the current page.
+          // If there's not even room for one, start a fresh page first — a
+          // code block's background must never run past the bottom margin.
+          let fit = Math.floor((y - MARGIN - boxPad) / lineHeight);
+          if (fit < 1) {
+            newPage();
+            fit = Math.floor((y - MARGIN - boxPad) / lineHeight);
+          }
+
+          const segment = lines.slice(idx, idx + Math.max(1, fit));
+          const boxHeight = segment.length * lineHeight + boxPad;
+          page.drawRectangle({ x: MARGIN, y: y - boxHeight, width: CONTENT_WIDTH, height: boxHeight, color: CODE_BG });
+
+          let cy = y - 12;
+          for (const raw of segment) {
+            // Fall back gracefully if a single line is wider than the box —
+            // truncate rather than overflow the background rectangle.
+            let line = toWinAnsi(raw).text;
+            const maxChars = 100;
+            if (line.length > maxChars) line = line.slice(0, maxChars - 1) + '…';
+            page.drawText(line, { x: MARGIN + 12, y: cy, size: 10, font: fonts.mono, color: CODE_TEXT });
+            cy -= lineHeight;
+          }
+
+          y -= boxHeight;
+          idx += segment.length;
+          if (idx < lines.length) {
+            y -= 10; // gap before the continuation box, mirrors the post-block gap below
+            newPage();
+          }
         }
-        y -= boxHeight + 10;
+
+        y -= 10;
         break;
       }
 

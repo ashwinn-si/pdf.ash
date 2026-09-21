@@ -1,23 +1,25 @@
 import { Download, Loader2 } from 'lucide-react';
 import type { Tool } from './Sidebar';
+import type { SplitMode } from './SplitPanel';
 
 interface BottomBarProps {
   pageCount: number;
   selectedCount: number;
   activeTool: Tool;
+  splitMode?: SplitMode;
   onProcess: () => void;
   isProcessing: boolean;
   hasPages: boolean;
 }
 
-function getActionLabel(tool: Tool): string {
+function getActionLabel(tool: Tool, splitMode?: SplitMode): string {
   switch (tool) {
     case 'merge':
     case 'rearrange':
     case 'edit':
       return 'Download PDF';
     case 'split':
-      return 'Split & Download';
+      return splitMode === 'selected' ? 'Extract & Download' : 'Split & Download';
     case 'compress':
       return 'Compress & Download';
     case 'convert':
@@ -33,6 +35,7 @@ export default function BottomBar({
   pageCount,
   selectedCount,
   activeTool,
+  splitMode,
   onProcess,
   isProcessing,
   hasPages,
@@ -69,7 +72,7 @@ export default function BottomBar({
           ) : (
             <>
               <Download size={18} />
-              {getActionLabel(activeTool)}
+              {getActionLabel(activeTool, splitMode)}
             </>
           )}
         </button>

@@ -1,13 +1,19 @@
+export type SplitMode = 'range' | 'individual' | 'selected';
+
 interface SplitPanelProps {
   totalPages: number;
+  /** How many pages are currently selected — the "Extract selected" option
+   * only makes sense, and only shows, once there's something selected. */
+  selectedCount: number;
   splitRange: string;
   onSplitRangeChange: (range: string) => void;
-  splitMode: 'range' | 'individual';
-  onSplitModeChange: (mode: 'range' | 'individual') => void;
+  splitMode: SplitMode;
+  onSplitModeChange: (mode: SplitMode) => void;
 }
 
 export default function SplitPanel({
   totalPages,
+  selectedCount,
   splitRange,
   onSplitRangeChange,
   splitMode,
@@ -55,6 +61,22 @@ export default function SplitPanel({
           />
           <label htmlFor="split-mode-individual">Split into individual pages ({totalPages} files)</label>
         </div>
+
+        {selectedCount > 0 && (
+          <div
+            className={`split-option ${splitMode === 'selected' ? 'active' : ''}`}
+            onClick={() => onSplitModeChange('selected')}
+          >
+            <input
+              type="radio"
+              id="split-mode-selected"
+              name="splitMode"
+              checked={splitMode === 'selected'}
+              onChange={() => onSplitModeChange('selected')}
+            />
+            <label htmlFor="split-mode-selected">Extract selected pages ({selectedCount})</label>
+          </div>
+        )}
       </div>
     </div>
   );

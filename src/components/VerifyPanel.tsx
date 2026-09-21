@@ -109,6 +109,9 @@ export default function VerifyPanel() {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
+            // Never let this bubble to App's global drop handler — that would
+            // load the same file into the workspace behind this panel (#7).
+            e.stopPropagation();
             accept(e.dataTransfer.files[0]);
           }}
         >
