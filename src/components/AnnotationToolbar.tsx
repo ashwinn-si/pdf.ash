@@ -199,6 +199,7 @@ export default function AnnotationToolbar({
               max={range.max}
               step={range.max <= 16 ? 0.5 : 1}
               value={Math.min(range.max, Math.max(range.min, size))}
+              style={{ '--fill': `${((Math.min(range.max, Math.max(range.min, size)) - range.min) / (range.max - range.min)) * 100}%` } as React.CSSProperties}
               onPointerDown={onEditStart}
               onKeyDown={onEditStart}
               onChange={(e) => onSizeChange(Number(e.target.value))}
@@ -216,6 +217,7 @@ export default function AnnotationToolbar({
               max={100}
               step={5}
               value={Math.round(opacity * 100)}
+              style={{ '--fill': `${((Math.round(opacity * 100) - 5) / 95) * 100}%` } as React.CSSProperties}
               onPointerDown={onEditStart}
               onKeyDown={onEditStart}
               onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
