@@ -3872,3 +3872,49 @@ body { font-variant-numeric: tabular-nums; }
   background: rgba(0, 0, 0, 0.62);
 }
 .preview-nav-btn:disabled { opacity: 0.35; }
+
+/* ==========================================================================
+   Preview modal image — was rendered from the small grid thumbnail and shown
+   at its native (tiny) pixel size, so it sat centred in a lot of empty dark
+   space. Workspace.tsx now re-renders the page at a much higher resolution
+   for this view; this makes that image actually fill the frame instead of
+   floating at an arbitrary intrinsic size, while a subtle scale-in plus a
+   spinner cover the brief gap before the sharper version is ready.
+   ========================================================================== */
+.preview-image-container {
+  position: relative;
+}
+.preview-image-container img {
+  width: 100%;
+  height: 100%;
+}
+.preview-image-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.preview-image-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: spin 0.9s linear infinite;
+}
+
+/* ==========================================================================
+   Spin animation — .custom-spinner and every Loader2 icon (`.spinning`, used
+   in Unlock/Verify/PasswordModal/FilePasswordModal/BottomBar/PdfEditor) were
+   all referencing a `spin` keyframe animation that was never actually
+   defined anywhere in this file, so none of those loading spinners rotated.
+   ========================================================================== */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinning {
+  animation: spin 0.9s linear infinite;
+  transform-origin: center;
+}

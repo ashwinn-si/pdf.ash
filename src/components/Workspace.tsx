@@ -29,6 +29,17 @@ import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
 import type { Annotation } from '../utils/annotations';
 import type { Tool } from './Sidebar';
+import { renderPageImage } from '../utils/pdfOperations';
+
+/**
+ * The grid thumbnail is rendered small (see pdfRenderer's default scale) so
+ * hundreds of them stay cheap to keep in memory. Showing that same image in
+ * the full-screen preview left it tiny and centred in a lot of empty space.
+ * Re-render the page at a much higher scale for the preview instead — the
+ * thumbnail is shown immediately as a fallback while the sharper version
+ * loads, so opening the preview never looks blank.
+ */
+const PREVIEW_RENDER_SCALE = 3;
 
 interface WorkspaceProps {
   pages: PageInfo[];
@@ -78,6 +89,11 @@ export default function Workspace({
 }: WorkspaceProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
+  // Keyed rather than a bare url: lets the render below tell "no hi-res yet
+  // for this page" apart from "stale hi-res from the page we just left"
+  // without resetting state synchronously inside the effect (react-hooks/
+  // set-state-in-effect) every time the previewed page changes.
+  const [previewHiRes, setPreviewHiRes] = useState<{ key: string; url: string } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
 
@@ -140,6 +156,28 @@ export default function Workspace({
   const sensors = canDrag ? allSensors : noSensors;
 
   const previewPage = previewPageIndex !== null ? pages[previewPageIndex] : null;
+
+  const previewKey = previewPage
+    ? `${previewPage.fileIndex}:${previewPage.pageIndex}:${previewPage.rotation}`
+    : null;
+
+  // Re-render the current preview page at full resolution. `cancelled` stops
+  // a slow render for a page the user has already paged past from landing
+  // late and overwriting what's now on screen.
+  useEffect(() => {
+    if (!previewPage || !previewKey) return;
+    let cancelled = false;
+    renderPageImage(previewPage.fileIndex, previewPage.pageIndex, previewPage.rotation, PREVIEW_RENDER_SCALE)
+      .then(({ url }) => {
+        if (!cancelled) setPreviewHiRes({ key: previewKey, url });
+      })
+      .catch(() => {
+        // Fall back silently to the grid thumbnail already on screen.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewKey, previewPage]);
 
   const handlePrevPreview = () => {
     if (previewPageIndex !== null && previewPageIndex > 0) {
@@ -337,11 +375,26 @@ export default function Workspace({
               </button>
 
               <div className="preview-image-container">
-                <img
-                  src={previewPage.thumbnail}
-                  alt={`Page ${previewPageIndex! + 1}`}
-                  style={{ transform: `rotate(${previewPage.rotation}deg)` }}
-                />
+                {/* The grid thumbnail isn't rotated (rotation is a CSS
+                    transform in the grid); renderPageImage bakes rotation
+                    into the canvas, so only the fallback needs the transform. */}
+                {(() => {
+                  const hiResUrl = previewHiRes?.key === previewKey ? previewHiRes.url : null;
+                  return (
+                    <>
+                      <img
+                        src={hiResUrl ?? previewPage.thumbnail}
+                        alt={`Page ${previewPageIndex! + 1}`}
+                        style={hiResUrl ? undefined : { transform: `rotate(${previewPage.rotation}deg)` }}
+                      />
+                      {!hiResUrl && (
+                        <div className="preview-image-loading" role="status" aria-live="polite">
+                          <span className="preview-image-loading-spinner" />
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <button
