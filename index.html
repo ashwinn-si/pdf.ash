@@ -4,7 +4,31 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+
+    <!--
+      Applied before anything paints, so a returning user with dark mode
+      saved never sees a flash of the light theme first. Kept as a tiny
+      inline script (not a module) so it isn't deferred behind main.tsx.
+      Falls back to the OS preference for a first-time visitor; App.tsx
+      reads this same attribute back on mount instead of re-deciding it.
+    -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('pdfash-theme');
+          var theme =
+            saved === 'dark' || saved === 'light'
+              ? saved
+              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          // localStorage/matchMedia unavailable (privacy mode, old browser) — default light.
+        }
+      })();
+    </script>
+
     <!-- Primary Meta Tags -->
     <title>pdf.ash – All-in-One PDF Editor</title>
     <meta name="title" content="pdf.ash – All-in-One PDF Editor" />

@@ -65,7 +65,12 @@ function App() {
   const [history, setHistory] = useState<HistoryState>(createInitialHistory([]));
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // index.html's inline script already set data-theme before this app mounted
+  // (reading the same 'pdfash-theme' key, falling back to the OS preference),
+  // so read that back rather than re-deciding it and risking a mismatch.
+  const [isDarkMode, setIsDarkMode] = useState(
+    () => document.documentElement.getAttribute('data-theme') === 'dark'
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [splitRange, setSplitRange] = useState('');
   const [splitMode, setSplitMode] = useState<SplitMode>('range');
@@ -450,11 +455,17 @@ function App() {
     [handleFilesSelected]
   );
 
-  // Toggle dark mode
+  // Toggle dark mode — persisted so the choice survives a reload/new tab.
   const handleToggleTheme = useCallback(() => {
     setIsDarkMode(prev => {
       const next = !prev;
-      document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+      const theme = next ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      try {
+        localStorage.setItem('pdfash-theme', theme);
+      } catch {
+        // Privacy mode / storage disabled — theme still applies for this session.
+      }
       return next;
     });
   }, []);
