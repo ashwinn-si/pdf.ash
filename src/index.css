@@ -3817,3 +3817,22 @@ body { font-variant-numeric: tabular-nums; }
   border-radius: var(--radius-full);
   background: var(--color-primary);
 }
+
+/* ==========================================================================
+   Modal background — dedicated, more opaque tier. Modal content (dialogs,
+   preview, toasts) needs to stay legible over busy pages/thumbnails, so it
+   gets its own token instead of sharing --glass-strong with the chrome bars.
+   ========================================================================== */
+:root {
+  --glass-modal: rgba(255, 255, 255, 0.88);
+}
+[data-theme="dark"] {
+  --glass-modal: rgba(20, 20, 26, 0.90);
+}
+
+.password-modal,
+.preview-modal-content,
+.progress-card,
+.toaster-content {
+  background: var(--glass-modal);
+}
