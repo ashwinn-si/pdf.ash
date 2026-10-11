@@ -313,6 +313,7 @@ button:focus-visible {
   padding: 16px 12px;
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-section-label {
@@ -327,10 +328,9 @@ button:focus-visible {
 }
 
 .sidebar.collapsed .sidebar-section-label {
-  visibility: hidden;
-  height: 0;
-  margin: 0;
-  padding: 0;
+  /* display:none, not just height:0 — the nowrap text would otherwise still
+     force the tool list wider than the collapsed rail and add a scrollbar. */
+  display: none;
 }
 
 .sidebar-tool {
