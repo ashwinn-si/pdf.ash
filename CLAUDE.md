@@ -92,6 +92,10 @@ Splitting into several files or converting several pages to images used to fire 
 
 Every user-facing failure — a file that couldn't be added, an invalid split range, a processing error, the compress "already optimised" notice — goes through the `Toast` component (`role="alert"` for errors, `role="status"` for notices; errors stay until dismissed or replaced, notices auto-dismiss after ~6s) instead of `alert()`. `describeLoadError(err)` (in `pdfOperations.ts`) turns a raw exception into a short, plain-language reason the toast prefixes with the file name.
 
+### Branding and SEO
+
+The logo (`public/logo.png`, mirrored in `src/assets/logo.png` for the sidebar) is a violet rounded-square page with a flame; favicons, `apple-touch-icon.png`, `icon-192/512.png` and the 1200×630 social card `og-image.png` are all derived from it and live in `public/`. `index.html` carries the title/description/keywords, canonical URL, Open Graph + Twitter tags, `theme-color`, a `WebApplication` JSON-LD block and a `<noscript>` fallback; `public/manifest.webmanifest`, `robots.txt` and `sitemap.xml` complete the set. The production origin is `https://pdf.ashwinsi.in/` — keep it consistent across the canonical, `og:url`, sitemap and robots files when it changes.
+
 ### Build note
 
 Production builds are JS-obfuscated via `vite-plugin-javascript-obfuscator`. This significantly increases build time. The obfuscator runs only on `apply: 'build'` — dev server is unaffected. `selfDefending` is explicitly off: the obfuscator runs in Vite's transform phase, and esbuild's minifier runs *after* it, including over the selfDefending wrapper itself — it can turn an escaped `"\n"` into a template literal containing a real newline, which the wrapper's own tamper-check regex (`(((.+)+)+)+$`) then catastrophically backtracks on and hangs the main thread on load. This is confirmed reproducible with `selfDefending` on, and javascript-obfuscator's own docs say it's incompatible with any post-obfuscation transform — which Vite always runs — so it can never safely be re-enabled under this build pipeline.

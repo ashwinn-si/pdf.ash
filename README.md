@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="pdf.ash logo" width="96" height="96" />
+</p>
+
 # pdf.ash - All-in-One PDF Editor
 
 pdf.ash is a unified, single-page web application that allows you to perform multiple PDF operations--such as splitting, rearranging, compressing, and converting--entirely within your browser. By utilizing client-side processing, your files remain completely private and secure.
