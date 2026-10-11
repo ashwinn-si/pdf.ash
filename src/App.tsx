@@ -19,6 +19,8 @@ import {
   extractPages,
   compressPdf,
   createBlankPage,
+  formatBytes,
+  wholeSourceSize,
   parseRanges,
   downloadFile,
   downloadFilesOrZip,
@@ -35,6 +37,7 @@ import {
   ACCEPT_ATTRIBUTE,
 } from './utils/pdfOperations';
 import { markdownToPdfBuffer } from './utils/markdownToPdf';
+import { applyStamps, hasStampWork, DEFAULT_STAMP_OPTIONS, type StampOptions } from './utils/pdfStamp';
 import { decryptPdfBytes } from './utils/qpdf';
 import {
   createInitialHistory,
@@ -85,6 +88,7 @@ function App() {
   const [filePasswordError, setFilePasswordError] = useState('');
   const [isDecryptingFile, setIsDecryptingFile] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
+  const [stampOptions, setStampOptions] = useState<StampOptions>(DEFAULT_STAMP_OPTIONS);
 
   const fileCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -563,11 +567,16 @@ function App() {
       try {
         switch (activeTool) {
           case 'merge':
-          case 'rearrange':
           case 'edit':
-          case 'imageToPdf':
+          case 'stamp':
           case 'compress': {
+            if (activeTool === 'stamp' && !hasStampWork(stampOptions)) {
+              showToast('error', 'Turn on a watermark (with some text) or page numbers first.');
+              return;
+            }
+
             let data: Uint8Array;
+            let compressNote: string | undefined;
             if (activeTool === 'compress') {
               const result = await compressPdf(pages, compressionQuality / 100, setProgress);
               data = result.data;
@@ -576,7 +585,18 @@ function App() {
                   'notice',
                   'This PDF is already well optimised — downloaded without further compression.'
                 );
+              } else {
+                const before = wholeSourceSize(pages);
+                if (before && before > data.byteLength) {
+                  const saved = Math.round((1 - data.byteLength / before) * 100);
+                  compressNote = `Compressed ${formatBytes(before)} → ${formatBytes(data.byteLength)} (${saved}% smaller)`;
+                } else {
+                  compressNote = `Compressed to ${formatBytes(data.byteLength)}`;
+                }
               }
+            } else if (activeTool === 'stamp') {
+              const built = await buildPdf(pages, p => setProgress(Math.round(p * 0.6)));
+              data = await applyStamps(built, stampOptions, p => setProgress(60 + Math.round(p * 0.4)));
             } else {
               data = await buildPdf(pages, setProgress);
             }
@@ -591,18 +611,19 @@ function App() {
                 filename += '.pdf';
               }
             } else {
-              filename =
-                activeTool === 'compress'
-                  ? 'compressed.pdf'
-                  : activeTool === 'merge'
-                    ? 'merged.pdf'
-                    : activeTool === 'imageToPdf'
-                      ? 'converted.pdf'
-                      : activeTool === 'edit'
-                        ? 'edited.pdf'
-                        : 'rearranged.pdf';
+              const defaultNames: Partial<Record<Tool, string>> = {
+                compress: 'compressed.pdf',
+                edit: 'edited.pdf',
+                stamp: 'stamped.pdf',
+              };
+              filename = defaultNames[activeTool] ?? 'merged.pdf';
             }
             downloadFile(data, filename);
+            if (compressNote) {
+              showToast('notice', `${compressNote} — saved as ${filename}`);
+            } else if (!(activeTool === 'compress')) {
+              showToast('notice', `Downloaded ${filename} (${formatBytes(data.byteLength)})`);
+            }
             break;
           }
 
@@ -664,22 +685,27 @@ function App() {
         setProgress(0);
       }
     },
-    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, customFilename, showToast]
+    [pages, activeTool, splitMode, splitRange, convertFormat, compressionQuality, customFilename, stampOptions, showToast]
   );
 
-  // Process button handler – for merge/rearrange, show password modal first
+  // Process button handler – for merge, show password modal first
   const handleProcessClick = useCallback(() => {
     if (pages.length === 0) return;
 
-    // For merge, rearrange, imageToPdf – offer password protection
-    if (['merge', 'rearrange', 'edit', 'imageToPdf'].includes(activeTool)) {
+    if (activeTool === 'stamp' && !hasStampWork(stampOptions)) {
+      showToast('error', 'Turn on a watermark (with some text) or page numbers first.');
+      return;
+    }
+
+    // For merge, edit, stamp – offer password protection
+    if (['merge', 'edit', 'stamp'].includes(activeTool)) {
       setShowPasswordModal(true);
       return;
     }
 
     // For other tools, process directly
     handleProcess();
-  }, [pages.length, activeTool, handleProcess]);
+  }, [pages.length, activeTool, stampOptions, showToast, handleProcess]);
 
   // Handle password-protected download
   const handlePasswordConfirm = useCallback(
@@ -806,10 +832,11 @@ function App() {
           onConvertFormatChange={setConvertFormat}
           compressionQuality={compressionQuality}
           onCompressionQualityChange={setCompressionQuality}
-          acceptImages={activeTool === 'imageToPdf'}
           onUnlocked={handleUnlocked}
           onAnnotationsChange={handleAnnotationsChange}
           onCheckpoint={handleCheckpoint}
+          stampOptions={stampOptions}
+          onStampOptionsChange={setStampOptions}
           onSelectAll={handleSelectAll}
           onRotateSelected={handleRotateSelected}
           onDuplicateSelected={handleDuplicateSelected}

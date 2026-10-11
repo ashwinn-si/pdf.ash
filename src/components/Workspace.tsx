@@ -25,7 +25,9 @@ import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
 import PdfEditor from './PdfEditor';
 import VerifyPanel from './VerifyPanel';
+import StampPanel from './StampPanel';
 import PageToolbar from './PageToolbar';
+import type { StampOptions } from '../utils/pdfStamp';
 import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
 import type { Annotation } from '../utils/annotations';
@@ -60,10 +62,11 @@ interface WorkspaceProps {
   onConvertFormatChange: (format: ConvertFormat) => void;
   compressionQuality: number;
   onCompressionQualityChange: (quality: number) => void;
-  acceptImages?: boolean;
   onUnlocked?: (buffer: ArrayBuffer, fileName: string) => void;
   onAnnotationsChange: (pageId: string, annotations: Annotation[], commit: boolean) => void;
   onCheckpoint: () => void;
+  stampOptions: StampOptions;
+  onStampOptionsChange: (options: StampOptions) => void;
   onSelectAll: (select: boolean) => void;
   onRotateSelected: () => void;
   onDuplicateSelected: () => void;
@@ -93,6 +96,8 @@ export default function Workspace({
   onUnlocked,
   onAnnotationsChange,
   onCheckpoint,
+  stampOptions,
+  onStampOptionsChange,
   onSelectAll,
   onRotateSelected,
   onDuplicateSelected,
@@ -146,7 +151,7 @@ export default function Workspace({
     return () => mql.removeEventListener('change', onChange as (e: MediaQueryListEvent) => void);
   }, []);
 
-  const canDrag = !isMobile || activeTool === 'rearrange';
+  const canDrag = !isMobile || activeTool === 'merge';
 
   const allSensors = useSensors(
     useSensor(PointerSensor, {
@@ -225,7 +230,7 @@ export default function Workspace({
   if (pages.length === 0) {
     return (
       <div className="workspace">
-        <UploadZone onFilesSelected={onFilesSelected} onFilesRejected={onFilesRejected} />
+        <UploadZone activeTool={activeTool} onFilesSelected={onFilesSelected} onFilesRejected={onFilesRejected} />
       </div>
     );
   }
@@ -259,6 +264,14 @@ export default function Workspace({
         onInsertBlank={onInsertBlank}
         onReverse={onReverse}
       />
+
+      {activeTool === 'stamp' && (
+        <StampPanel
+          options={stampOptions}
+          onChange={onStampOptionsChange}
+          totalPages={pages.length}
+        />
+      )}
 
       {activeTool === 'split' && (
         <SplitPanel
@@ -303,14 +316,14 @@ export default function Workspace({
           items={pages.map((p) => p.id)}
           strategy={rectSortingStrategy}
         >
-          {isMobile && activeTool === 'rearrange' && (
+          {isMobile && activeTool === 'merge' && (
             <div className="mobile-rearrange-hint">
               <GripVertical size={16} />
               <span>Press &amp; hold to drag pages into new positions</span>
             </div>
           )}
           <div
-            className={`workspace-grid ${isMobile && activeTool === 'rearrange' ? 'rearrange-active' : ''} ${selectedCount > 0 ? 'has-selection' : ''}`}
+            className={`workspace-grid ${isMobile && activeTool === 'merge' ? 'rearrange-active' : ''} ${selectedCount > 0 ? 'has-selection' : ''}`}
           >
             {pages.map((page, index) => (
               <PageThumbnail

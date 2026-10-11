@@ -4,17 +4,16 @@ import {
   Minimize2,
   FileText,
   ArrowRightLeft,
-  ImagePlus,
   PanelLeftClose,
   PanelLeft,
   Layers,
-  LayoutGrid,
   LockOpen,
   PenTool,
   ShieldCheck,
+  Stamp,
 } from 'lucide-react';
 
-export type Tool = 'merge' | 'rearrange' | 'edit' | 'split' | 'compress' | 'convert' | 'imageToPdf' | 'unlock' | 'verify';
+export type Tool = 'merge' | 'edit' | 'split' | 'compress' | 'convert' | 'unlock' | 'verify' | 'stamp';
 
 interface SidebarProps {
   activeTool: Tool;
@@ -24,16 +23,42 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const tools: { id: Tool; label: string; icon: React.ReactNode; description: string }[] = [
-  { id: 'merge', label: 'Merge', icon: <Layers size={18} />, description: 'Merge multiple PDFs' },
-  { id: 'rearrange', label: 'Rearrange', icon: <LayoutGrid size={18} />, description: 'Rearrange PDF pages' },
-  { id: 'edit', label: 'Edit', icon: <PenTool size={18} />, description: 'Sign & annotate pages' },
-  { id: 'split', label: 'Split', icon: <Scissors size={18} />, description: 'Split into parts' },
-  { id: 'compress', label: 'Compress', icon: <Minimize2 size={18} />, description: 'Reduce file size' },
-  { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },
-  { id: 'imageToPdf', label: 'Convert to PDF', icon: <ImagePlus size={18} />, description: 'Convert images or Markdown files to PDF' },
-  { id: 'unlock', label: 'Unlock', icon: <LockOpen size={18} />, description: 'Remove password from PDF' },
-  { id: 'verify', label: 'Verify', icon: <ShieldCheck size={18} />, description: 'Check a PDF’s digital signatures' },
+interface ToolDef {
+  id: Tool;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}
+
+const toolGroups: { label: string; tools: ToolDef[] }[] = [
+  {
+    label: 'Organize',
+    tools: [
+      { id: 'merge', label: 'Merge & Arrange', icon: <Layers size={18} />, description: 'Combine PDFs, images and Markdown, then reorder, rotate or delete pages' },
+      { id: 'split', label: 'Split', icon: <Scissors size={18} />, description: 'Split into parts' },
+    ],
+  },
+  {
+    label: 'Edit',
+    tools: [
+      { id: 'edit', label: 'Edit', icon: <PenTool size={18} />, description: 'Sign & annotate pages' },
+      { id: 'stamp', label: 'Watermark', icon: <Stamp size={18} />, description: 'Add a watermark and page numbers' },
+    ],
+  },
+  {
+    label: 'Optimize & convert',
+    tools: [
+      { id: 'compress', label: 'Compress', icon: <Minimize2 size={18} />, description: 'Reduce file size' },
+      { id: 'convert', label: 'Convert', icon: <ArrowRightLeft size={18} />, description: 'Convert to other formats' },
+    ],
+  },
+  {
+    label: 'Security',
+    tools: [
+      { id: 'unlock', label: 'Unlock', icon: <LockOpen size={18} />, description: 'Remove password from PDF' },
+      { id: 'verify', label: 'Verify', icon: <ShieldCheck size={18} />, description: 'Check a PDF’s digital signatures' },
+    ],
+  },
 ];
 
 export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, onToggle }: SidebarProps) {
@@ -59,18 +84,22 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
       </div>
 
       <nav className="sidebar-section" aria-label="Tools">
-        <div className="sidebar-section-label">Tools</div>
-        {tools.map((tool) => (
-          <button
-            key={tool.id}
-            className={`sidebar-tool ${activeTool === tool.id ? 'active' : ''}`}
-            onClick={() => onSelectTool(activeTool === tool.id ? 'merge' : tool.id)}
-            title={tool.description}
-            aria-current={activeTool === tool.id ? 'true' : undefined}
-          >
-            <span className="sidebar-tool-icon">{tool.icon}</span>
-            <span>{tool.label}</span>
-          </button>
+        {toolGroups.map((group) => (
+          <div className="sidebar-group" key={group.label}>
+            <div className="sidebar-section-label">{group.label}</div>
+            {group.tools.map((tool) => (
+              <button
+                key={tool.id}
+                className={`sidebar-tool ${activeTool === tool.id ? 'active' : ''}`}
+                onClick={() => onSelectTool(activeTool === tool.id ? 'merge' : tool.id)}
+                title={tool.description}
+                aria-current={activeTool === tool.id ? 'true' : undefined}
+              >
+                <span className="sidebar-tool-icon">{tool.icon}</span>
+                <span>{tool.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
 

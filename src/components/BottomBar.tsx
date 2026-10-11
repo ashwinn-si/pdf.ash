@@ -15,7 +15,6 @@ interface BottomBarProps {
 function getActionLabel(tool: Tool, splitMode?: SplitMode): string {
   switch (tool) {
     case 'merge':
-    case 'rearrange':
     case 'edit':
       return 'Download PDF';
     case 'split':
@@ -24,8 +23,8 @@ function getActionLabel(tool: Tool, splitMode?: SplitMode): string {
       return 'Compress & Download';
     case 'convert':
       return 'Convert & Download';
-    case 'imageToPdf':
-      return 'Download as PDF';
+    case 'stamp':
+      return 'Apply & Download';
     default:
       return 'Process & Download';
   }
