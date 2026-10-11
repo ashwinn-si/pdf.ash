@@ -3918,3 +3918,247 @@ body { font-variant-numeric: tabular-nums; }
   animation: spin 0.9s linear infinite;
   transform-origin: center;
 }
+/* ==========================================================================
+   Watermark & page numbers panel
+   ========================================================================== */
+.stamp-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.stamp-card {
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  background: var(--glass-mid);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  transition: border-color var(--transition-normal);
+}
+.stamp-card.enabled {
+  border-color: var(--color-primary-border);
+}
+.stamp-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stamp-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-tint);
+  color: var(--color-primary-text);
+  flex-shrink: 0;
+}
+.stamp-card-heading {
+  flex: 1;
+  min-width: 0;
+}
+.stamp-card-heading h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.stamp-card-heading p {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+.stamp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-light);
+  animation: fadeIn var(--duration-base) var(--ease-standard);
+}
+.stamp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: flex-end;
+}
+.stamp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.stamp-field-grow {
+  flex: 1;
+}
+.stamp-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+}
+.stamp-field-label strong {
+  color: var(--color-primary-text);
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+.stamp-field .split-range-input {
+  margin-top: 0;
+}
+.stamp-number-input {
+  width: 96px;
+}
+.stamp-hint.warning {
+  font-size: 11.5px;
+  color: var(--color-warning);
+}
+
+/* Toggle switch */
+.stamp-switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+.stamp-switch.on {
+  background: var(--color-primary);
+}
+.stamp-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--transition-fast);
+}
+.stamp-switch.on .stamp-switch-thumb {
+  transform: translateX(18px);
+}
+.stamp-switch:focus-visible,
+.stamp-swatch:focus-visible,
+.stamp-position-cell:focus-visible,
+.stamp-segmented button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Segmented control */
+.stamp-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-light);
+}
+.stamp-segmented.vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+.stamp-segmented button {
+  padding: 6px 12px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.stamp-segmented button:hover:not(.active) {
+  color: var(--color-text);
+}
+.stamp-segmented button.active {
+  background: var(--color-primary);
+  color: var(--color-text-on-action);
+}
+
+/* Colour swatches */
+.stamp-swatches {
+  display: flex;
+  gap: 10px;
+  min-height: 36px;
+  align-items: center;
+}
+.stamp-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.stamp-swatch:hover {
+  transform: scale(1.12);
+}
+.stamp-swatch.active {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+/* Mini page that shows where the number goes */
+.stamp-position-grid {
+  position: relative;
+  width: 72px;
+  height: 96px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid var(--color-border-strong);
+  box-shadow: var(--shadow-1);
+}
+.stamp-position-cell {
+  position: absolute;
+  width: 24px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stamp-position-cell span {
+  width: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.18);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.stamp-position-cell:hover span {
+  background: var(--color-primary-border);
+}
+.stamp-position-cell.active span {
+  background: var(--color-primary);
+  transform: scaleX(1.25);
+}
+.stamp-position-cell.top-left { top: 2px; left: 2px; }
+.stamp-position-cell.top-center { top: 2px; left: 24px; }
+.stamp-position-cell.top-right { top: 2px; right: 2px; }
+.stamp-position-cell.bottom-left { bottom: 2px; left: 2px; }
+.stamp-position-cell.bottom-center { bottom: 2px; left: 24px; }
+.stamp-position-cell.bottom-right { bottom: 2px; right: 2px; }
+
+.stamp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  min-height: 40px;
+}
+.stamp-check input {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+}
+
+
+.stamp-panel {
+  align-items: start;
+}
