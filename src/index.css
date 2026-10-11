@@ -284,12 +284,7 @@ button:focus-visible {
 .sidebar-logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #8a4fff, #6425e0);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
+  object-fit: contain; /* the logo image carries its own rounded tile */
   flex-shrink: 0;
 }
 

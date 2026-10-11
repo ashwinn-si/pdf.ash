@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Scissors,
   Minimize2,
-  FileText,
   ArrowRightLeft,
   PanelLeftClose,
   PanelLeft,
@@ -12,6 +11,8 @@ import {
   ShieldCheck,
   Stamp,
 } from 'lucide-react';
+
+import logo from '../assets/logo.png';
 
 export type Tool = 'merge' | 'edit' | 'split' | 'compress' | 'convert' | 'unlock' | 'verify' | 'stamp';
 
@@ -65,9 +66,7 @@ export default function Sidebar({ activeTool, onSelectTool, pageCount, isOpen, o
   return (
     <aside className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <FileText size={20} />
-        </div>
+        <img className="sidebar-logo-icon" src={logo} alt="" width={36} height={36} />
         <div className="sidebar-logo-text">
           <h1>pdf.ash</h1>
           <span>All-in-one editor</span>
