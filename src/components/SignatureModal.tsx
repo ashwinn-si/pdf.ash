@@ -16,6 +16,9 @@ interface SignatureModalProps {
   onClose: () => void;
   /** Receives a PNG/JPEG data URL plus its natural pixel size. */
   onConfirm: (dataUrl: string, width: number, height: number) => void;
+  /** Tick "Remember this signature" by default — used when the modal is how a
+   * signature gets into the desktop tray, where saving is the whole point. */
+  rememberByDefault?: boolean;
 }
 
 function measure(dataUrl: string): Promise<{ width: number; height: number }> {
@@ -51,7 +54,12 @@ async function fileToProcessedDataUrl(file: File): Promise<string> {
   }
 }
 
-export default function SignatureModal({ isOpen, onClose, onConfirm }: SignatureModalProps) {
+export default function SignatureModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  rememberByDefault = false,
+}: SignatureModalProps) {
   const [tab, setTab] = useState<Tab>('upload');
   const [preview, setPreview] = useState<string | null>(null);
   const [rawUpload, setRawUpload] = useState<string | null>(null);
@@ -82,6 +90,7 @@ export default function SignatureModal({ isOpen, onClose, onConfirm }: Signature
     setWasOpen(isOpen);
     if (isOpen) {
       setSaved(loadSavedSignatures());
+      setRemember(rememberByDefault);
     } else {
       setPreview(null);
       setRawUpload(null);

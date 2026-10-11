@@ -42,6 +42,8 @@ interface AnnotationToolbarProps {
   bold: boolean;
   italic: boolean;
   onTextStyleChange: (style: { font?: TextFont; bold?: boolean; italic?: boolean }) => void;
+  /** True when the signature drawer is on screen (desktop), which changes the hint. */
+  hasSignatureDrawer?: boolean;
 }
 
 const TOOLS: { id: EditorTool; label: string; icon: React.ReactNode }[] = [
@@ -87,6 +89,7 @@ export default function AnnotationToolbar({
   bold,
   italic,
   onTextStyleChange,
+  hasSignatureDrawer = false,
 }: AnnotationToolbarProps) {
   const palette = editingKind === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS;
   const showColors = editingKind !== null && editingKind !== 'signature' && color !== null;
@@ -228,7 +231,9 @@ export default function AnnotationToolbar({
 
         {editingKind === 'signature' && !hasSelection && (
           <span className="annotation-options-hint">
-            Click the page to place a signature
+            {hasSignatureDrawer
+              ? 'Pick a signature in the drawer, then click the page'
+              : 'Click the page to place a signature'}
           </span>
         )}
         {hasSelection && (editingKind === 'signature' || editingKind === 'highlight') && (

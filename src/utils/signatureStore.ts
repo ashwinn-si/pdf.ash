@@ -4,7 +4,7 @@
  */
 
 const STORAGE_KEY = 'pdfash.signatures';
-const MAX_SAVED = 5;
+const MAX_SAVED = 8;
 
 export function loadSavedSignatures(): string[] {
   try {
@@ -47,6 +47,12 @@ export function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+/** Natural pixel size of an image data URL. */
+export async function measureDataUrl(dataUrl: string): Promise<{ width: number; height: number }> {
+  const img = await loadImage(dataUrl);
+  return { width: img.naturalWidth, height: img.naturalHeight };
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

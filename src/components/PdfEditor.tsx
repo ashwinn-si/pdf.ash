@@ -1,11 +1,17 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, RotateCw, AlertCircle } from 'lucide-react';
 import AnnotationToolbar from './AnnotationToolbar';
 import AnnotationLayer from './AnnotationLayer';
 import SignatureModal from './SignatureModal';
+import SignatureDrawer from './SignatureDrawer';
 import { renderPageImage } from '../utils/pdfOperations';
 import { describeFailure } from '../utils/lazyModule';
 import { unsupportedChars } from '../utils/pdfText';
+import {
+  loadSavedSignatures,
+  deleteSavedSignature,
+  measureDataUrl,
+} from '../utils/signatureStore';
 import {
   INK_COLORS,
   HIGHLIGHT_COLORS,
@@ -57,6 +63,25 @@ const DEFAULT_SIZES: Record<'text' | 'pencil' | 'cross' | 'check', number> = {
   check: 22,
 };
 
+/**
+ * Desktop widths get the one-click signature tray; phones keep the signature
+ * dialog, where a strip of thumbnails would be cramped. Tracks the viewport so
+ * rotating a tablet or resizing the window switches flows live.
+ */
+const DESKTOP_QUERY = '(min-width: 769px)';
+function subscribeDesktop(onChange: () => void) {
+  const mql = window.matchMedia(DESKTOP_QUERY);
+  mql.addEventListener('change', onChange);
+  return () => mql.removeEventListener('change', onChange);
+}
+function useIsDesktop(): boolean {
+  return useSyncExternalStore(
+    subscribeDesktop,
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => true
+  );
+}
+
 export default function PdfEditor({
   pages,
   onRotate,
@@ -77,6 +102,12 @@ export default function PdfEditor({
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState('');
   const [signatureAt, setSignatureAt] = useState<Point | null>(null);
+  // Desktop tray: the dialog can also be opened from the tray's "New" button,
+  // with no page position yet — it then just adds to the tray.
+  const [addingSignature, setAddingSignature] = useState(false);
+  const [savedSignatures, setSavedSignatures] = useState<string[]>(loadSavedSignatures);
+  const [pickedSignature, setPickedSignature] = useState<string | null>(null);
+  const isDesktop = useIsDesktop();
   const [displayWidth, setDisplayWidth] = useState(0);
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -204,18 +235,17 @@ export default function PdfEditor({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedId, handleDelete]);
 
-  const handleSignatureConfirm = useCallback(
-    (dataUrl: string, naturalWidth: number, naturalHeight: number) => {
-      const at = signatureAt;
-      setSignatureAt(null);
-      if (!at || !rendered) return;
+  /** Drop a signature, centred on `at`, then hand control back to Select so it
+   * can be nudged or resized straight away. */
+  const placeSignature = useCallback(
+    (at: Point, dataUrl: string, naturalWidth: number, naturalHeight: number) => {
+      if (!rendered) return;
       const w = Math.min(SIGNATURE_WIDTH, rendered.pointWidth * 0.6);
       const h = (naturalHeight / naturalWidth) * w;
       handleCommit({
         id: newAnnotationId(),
         kind: 'signature',
         opacity: opacities.signature,
-        // Drop it centred on the click, so it lands where the user aimed.
         x: Math.max(0, at.x - w / 2),
         y: Math.max(0, at.y - h / 2),
         w,
@@ -224,8 +254,46 @@ export default function PdfEditor({
       });
       setTool('select');
     },
-    [signatureAt, rendered, handleCommit, opacities.signature]
+    [rendered, handleCommit, opacities.signature]
   );
+
+  // The signature a click on the page will place: the one picked from the tray,
+  // else the most recently saved. Derived, so deleting it falls back cleanly.
+  const activeSignature =
+    pickedSignature && savedSignatures.includes(pickedSignature)
+      ? pickedSignature
+      : (savedSignatures[0] ?? null);
+
+  const handleRequestSignature = useCallback(
+    (at: Point) => {
+      if (isDesktop && activeSignature) {
+        measureDataUrl(activeSignature)
+          .then(({ width, height }) => placeSignature(at, activeSignature, width, height))
+          .catch(() => setSignatureAt(at)); // unreadable image — fall back to the dialog
+        return;
+      }
+      setSignatureAt(at);
+    },
+    [isDesktop, activeSignature, placeSignature]
+  );
+
+  const handleSignatureConfirm = useCallback(
+    (dataUrl: string, naturalWidth: number, naturalHeight: number) => {
+      const at = signatureAt;
+      setSignatureAt(null);
+      setAddingSignature(false);
+      // The dialog may have saved it; pick up the new list and make it the one
+      // the next click places.
+      setSavedSignatures(loadSavedSignatures());
+      setPickedSignature(dataUrl);
+      if (at) placeSignature(at, dataUrl, naturalWidth, naturalHeight);
+    },
+    [signatureAt, placeSignature]
+  );
+
+  const handleDeleteSavedSignature = useCallback((i: number) => {
+    setSavedSignatures(deleteSavedSignature(i));
+  }, []);
 
   const selected = useMemo(
     () => annotations.find((a) => a.id === selectedId) ?? null,
@@ -333,6 +401,7 @@ export default function PdfEditor({
         bold={selectedText?.bold ?? bold}
         italic={selectedText?.italic ?? italic}
         onTextStyleChange={handleTextStyleChange}
+        hasSignatureDrawer={isDesktop}
       />
 
       <div className="pdf-editor-body">
@@ -437,7 +506,7 @@ export default function PdfEditor({
                 onBeginEdit={onCheckpoint}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
-                onRequestSignature={setSignatureAt}
+                onRequestSignature={handleRequestSignature}
               />
             </div>
           )}
@@ -455,12 +524,28 @@ export default function PdfEditor({
               : 'Your marks are stamped into the PDF when you hit Download.'}
           </p>
         </div>
+
+        {isDesktop && (
+          <SignatureDrawer
+            isOpen={tool === 'signature'}
+            signatures={savedSignatures}
+            activeSignature={activeSignature}
+            onPick={setPickedSignature}
+            onAdd={() => setAddingSignature(true)}
+            onDelete={handleDeleteSavedSignature}
+            onClose={() => setTool('select')}
+          />
+        )}
       </div>
 
       <SignatureModal
-        isOpen={signatureAt !== null}
-        onClose={() => setSignatureAt(null)}
+        isOpen={signatureAt !== null || addingSignature}
+        onClose={() => {
+          setSignatureAt(null);
+          setAddingSignature(false);
+        }}
         onConfirm={handleSignatureConfirm}
+        rememberByDefault={isDesktop}
       />
     </div>
   );
