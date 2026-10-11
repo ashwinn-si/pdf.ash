@@ -36,9 +36,10 @@ Failures anywhere in this flow surface as a dismissible toast (`components/Toast
 
 ### Tool system
 
-`activeTool` (type `Tool` from `Sidebar.tsx`) controls which panel renders inside `Workspace`. Tools: `merge`, `rearrange`, `edit`, `split`, `compress`, `convert`, `imageToPdf`, `unlock`, `verify`.
+`activeTool` (type `Tool` from `Sidebar.tsx`) controls which panel renders inside `Workspace`. Tools: `merge` (labelled "Merge & Arrange" — it also covers reordering/rotating/deleting pages, and non-PDF uploads are converted on the way in), `edit`, `stamp`, `split`, `compress`, `convert`, `unlock`, `verify`. The sidebar groups them (Organize / Edit / Optimize & convert / Security).
 
-- `merge/rearrange/edit/imageToPdf` → `buildPdf` → optional password lock via `lockPdfBytes` (qpdf, AES-256)
+- `merge/edit` → `buildPdf` → optional password lock via `lockPdfBytes` (qpdf, AES-256)
+- `stamp` → `buildPdf` then `applyStamps` (`utils/pdfStamp.ts`: text watermark + page numbers drawn onto the finished PDF, honouring each page's /Rotate and CropBox), then the same optional password lock as merge. Options live in `App.tsx` (`stampOptions`) and are edited in `StampPanel`.
 - `compress` → `compressPdf` (re-renders pages via pdfjs canvas at lower quality, rebuilds with pdf-lib; returns `{ data, alreadyOptimal }` — if rasterizing came out larger than the lossless rebuild, the lossless one wins and the UI shows a notice instead of silently handing back a bigger file)
 - `split` → three modes (`SplitPanel`'s `SplitMode`): `range`/`individual` → `splitPdf` with parsed page ranges → `downloadFilesOrZip`; `selected` (only offered once pages are selected) → `extractPages` on the selected pages → a single PDF download
 - `convert` → `convertPdfToImages` (PNG/JPG, zips its own output when there's more than one page) or `convertPdfToText` (pdfjs text layer)
@@ -59,8 +60,12 @@ Failures anywhere in this flow surface as a dismissible toast (`components/Toast
 | `src/utils/markdownToPdf.ts` | Markdown → PDF parser and paginated renderer |
 | `src/utils/pdfRenderer.ts` | Thumbnail rendering via pdfjs-dist |
 | `src/utils/historyManager.ts` | Immutable undo/redo stack |
-| `src/utils/analytics.ts` | Vercel Analytics wrapper |
+| `src/utils/analytics.ts` | `sendAnalytics()` — on mount, GETs `api.ashwinsi.in/personal-server/website/add-analytics?website=pdf&trafficType=…` (trafficType from the page's `?trafficType=` param, default `normal`) for the visitor count; failures are swallowed. Separate from the `@vercel/analytics` `<Analytics />` component in `App.tsx` |
 | `src/components/Workspace.tsx` | Renders active tool panel + page grid |
+| `src/utils/pdfStamp.ts` | Watermark + page-number stamping (`applyStamps`, `DEFAULT_STAMP_OPTIONS`) |
+| `src/components/PageToolbar.tsx` | Bulk page actions above the grid: select all, rotate/duplicate/delete selected, insert blank page, reverse |
+| `src/components/CompressPanel.tsx` | Quality slider plus a live size estimate (`estimateCompression`: really compresses ≤8 evenly-sampled pages, debounced, cached per quality+page set) |
+| `src/components/StampPanel.tsx` | Options UI for the `stamp` tool |
 | `src/components/Toast.tsx` | Dismissible error/notice toast, bottom-right above the BottomBar |
 
 ### pdf.js: legacy build, not modern
@@ -70,6 +75,10 @@ Failures anywhere in this flow surface as a dismissible toast (`components/Toast
 ### qpdf: decrypt, repair, AES-256 lock
 
 `utils/qpdf.ts` wraps `qpdf-wasm-esm-embedded` (lazy-imported — it's a large code-split chunk) for the three things pdf-lib refuses outright: opening an encrypted PDF (`decryptPdfBytes`, including an owner-password-only "restricted" PDF opened with an empty password), repairing a structurally damaged one (`repairPdfBytes`), and locking one with AES-256 (`encryptPdfBytes`, used by `lockPdfBytes` — this replaced an earlier RC4-128 library). `pdfOperations.ts`'s `loadForEdit` calls into this automatically as a one-retry safety net whenever `PDFDocument.load` throws on a stored buffer. `QpdfError` carries `isPasswordError` so the UI (Unlock, the encrypted-file password prompt) can tell a wrong password from every other failure.
+
+### Page selection and bulk actions
+
+Every page-grid tool (all but `edit`/`unlock`/`verify`) shows per-page selection checkboxes plus `PageToolbar`. Ctrl/Cmd/Shift-click on a thumbnail toggles selection (a plain click previews); Ctrl/Cmd+A selects all and Delete removes the selection (guarded against typing and open dialogs). Duplicated pages reuse the same `fileIndex`/`pageIndex` with a new `id`. `createBlankPage` (`pdfOperations.ts`) makes a one-page PDF under a fresh `fileIndex`, sized to the neighbouring page, so a blank page flows through every operation like any other source. When pages come from more than one file each thumbnail carries a colour-coded source-file tag.
 
 ### Content sniffing
 

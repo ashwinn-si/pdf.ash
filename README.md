@@ -5,11 +5,12 @@ pdf.ash is a unified, single-page web application that allows you to perform mul
 ## Features
 
 - **Split PDF:** Extract specific pages or divide your PDF into multiple documents.
-- **Compress PDF:** Reduce the file size of your PDF documents for easier sharing via email or web.
+- **Compress PDF:** Reduce the file size of your PDF documents for easier sharing via email or web, with a live "current size → new size" preview as you move the quality slider.
 - **Convert PDF:** Seamlessly convert your PDF pages to high-quality PNG, JPG, or extract text (TXT).
-- **Image to PDF:** Combine multiple JPG or PNG images into a single, cohesive PDF document.
-- **Rearrange & Manage Pages:** Drag and drop pages to reorder them, delete unwanted pages, and rotate individual pages.
-- **Merge PDFs:** Upload multiple PDF files simultaneously to combine them into one document.
+- **Images & Markdown to PDF:** Drop JPG, PNG, WebP or Markdown files anywhere and they're converted to PDF automatically, ready to merge.
+- **Watermark & Page Numbers:** Stamp a diagonal or horizontal text watermark and number every page (position, format, start number, skip cover).
+- **Bulk Page Tools:** Select all, rotate/duplicate/delete the selection, insert blank pages, reverse the order — with Ctrl/⌘+A and Delete shortcuts.
+- **Merge & Arrange:** Upload multiple PDFs (or images and Markdown files, which are converted automatically) to combine them into one document, drag pages into any order, and delete or rotate individual pages.
 - **Dark Mode & Light Mode:** A visually stunning UI that adapts to your preferred system theme.
 - **Mobile Responsive:** A highly optimized layout with a bottom navigation bar for mobile devices.
 - **Fully Client-Side:** All processing happens locally in your browser using WebAssembly and JavaScript—no server uploads required.
