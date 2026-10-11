@@ -13,7 +13,9 @@ interface PageThumbnailProps {
   onDelete: (id: string) => void;
   onToggleSelect: (id: string) => void;
   onMovePage: (id: string, direction: 'left' | 'right') => void;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
+  /** When pages come from several files, tag each with its source file. */
+  showFileTag?: boolean;
 }
 
 
@@ -31,6 +33,7 @@ export function ThumbnailCard({
   attributes,
   listeners,
   onClick,
+  showFileTag,
 }: PageThumbnailProps & {
   style?: React.CSSProperties;
   isDragging?: boolean;
@@ -39,13 +42,16 @@ export function ThumbnailCard({
   attributes?: DraggableAttributes;
   listeners?: DraggableSyntheticListeners;
 }) {
-  const showCheckbox = activeTool === 'split';
+  // Selection drives the bulk actions in the page toolbar, so every grid tool
+  // offers it — not just Split.
+  const showCheckbox = activeTool !== 'edit';
+  const fileHue = (page.fileIndex * 67) % 360;
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className={`page-thumbnail animate-slide-up ${page.selected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isOverlay ? 'overlay' : ''}`}
+      style={{ ...style, ['--file-hue' as string]: fileHue }}
       onClick={onClick}
       {...attributes}
       {...listeners}
@@ -75,6 +81,13 @@ export function ThumbnailCard({
           draggable={false}
         />
       </div>
+
+      {showFileTag && (
+        <div className="page-thumbnail-file" title={page.fileName}>
+          <span className="page-thumbnail-file-dot" />
+          <span className="page-thumbnail-file-name">{page.fileName}</span>
+        </div>
+      )}
 
       <div className="page-thumbnail-footer">
         <span className="page-thumbnail-label">

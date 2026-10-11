@@ -3918,6 +3918,117 @@ body { font-variant-numeric: tabular-nums; }
   animation: spin 0.9s linear infinite;
   transform-origin: center;
 }
+
+/* ==========================================================================
+   Page toolbar — bulk actions above the page grid
+   ========================================================================== */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-md);
+  background: var(--glass-mid);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-chrome);
+}
+.page-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  min-height: 34px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.page-toolbar-btn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.page-toolbar-btn.danger:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+.page-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.page-toolbar-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.page-toolbar-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+}
+.page-toolbar-spacer {
+  flex: 1;
+}
+.page-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+@media (max-width: 768px) {
+  .page-toolbar-btn span {
+    display: none;
+  }
+  .page-toolbar-btn {
+    width: 38px;
+    justify-content: center;
+    padding: 0;
+  }
+  .page-toolbar-count {
+    flex: 1;
+  }
+  .page-toolbar-spacer {
+    display: none;
+  }
+}
+
+/* Selecting a page reveals every checkbox so the selection reads as a set. */
+.workspace-grid.has-selection .page-thumbnail-checkbox {
+  opacity: 1;
+}
+
+/* Source-file tag, shown once pages from several files are loaded */
+.page-thumbnail-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 0;
+  min-width: 0;
+}
+.page-thumbnail-file-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  background: hsl(var(--file-hue, 260) 70% 58%);
+}
+.page-thumbnail-file-name {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-thumbnail:has(.page-thumbnail-file) {
+  border-top: 3px solid hsl(var(--file-hue, 260) 70% 58%);
+}
+
 /* ==========================================================================
    Watermark & page numbers panel
    ========================================================================== */
@@ -4158,9 +4269,34 @@ body { font-variant-numeric: tabular-nums; }
   height: 16px;
 }
 
+/* Mid-width: keep the bulk-action row on one line by dropping labels (the
+   buttons keep their title tooltips) — "Select all" stays labelled. */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .page-toolbar-btn:not(:first-child) span {
+    display: none;
+  }
+  .page-toolbar-btn:not(:first-child) {
+    width: 36px;
+    justify-content: center;
+    padding: 0;
+  }
+  .page-toolbar-count {
+    white-space: nowrap;
+  }
+}
 
 .stamp-panel {
   align-items: start;
+}
+
+@media (max-width: 768px) {
+  /* Nothing selected: the "click ✓" hint costs a whole row on a phone. */
+  .page-toolbar-count.idle {
+    display: none;
+  }
+  .page-toolbar {
+    justify-content: space-between;
+  }
 }
 
 /* ==========================================================================

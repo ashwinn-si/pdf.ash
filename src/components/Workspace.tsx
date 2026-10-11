@@ -25,6 +25,7 @@ import CompressPanel from './CompressPanel';
 import UnlockPanel from './UnlockPanel';
 import PdfEditor from './PdfEditor';
 import VerifyPanel from './VerifyPanel';
+import PageToolbar from './PageToolbar';
 import type { ConvertFormat } from './ConvertPanel';
 import type { PageInfo } from '../utils/pdfRenderer';
 import type { Annotation } from '../utils/annotations';
@@ -63,6 +64,12 @@ interface WorkspaceProps {
   onUnlocked?: (buffer: ArrayBuffer, fileName: string) => void;
   onAnnotationsChange: (pageId: string, annotations: Annotation[], commit: boolean) => void;
   onCheckpoint: () => void;
+  onSelectAll: (select: boolean) => void;
+  onRotateSelected: () => void;
+  onDuplicateSelected: () => void;
+  onDeleteSelected: () => void;
+  onInsertBlank: () => void;
+  onReverse: () => void;
 }
 
 export default function Workspace({
@@ -86,6 +93,12 @@ export default function Workspace({
   onUnlocked,
   onAnnotationsChange,
   onCheckpoint,
+  onSelectAll,
+  onRotateSelected,
+  onDuplicateSelected,
+  onDeleteSelected,
+  onInsertBlank,
+  onReverse,
 }: WorkspaceProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
@@ -231,12 +244,26 @@ export default function Workspace({
     );
   }
 
+  const selectedCount = pages.filter((p) => p.selected).length;
+  const hasMultipleFiles = new Set(pages.map((p) => p.fileIndex)).size > 1;
+
   return (
     <div className="workspace">
+      <PageToolbar
+        totalPages={pages.length}
+        selectedCount={selectedCount}
+        onSelectAll={onSelectAll}
+        onRotateSelected={onRotateSelected}
+        onDuplicateSelected={onDuplicateSelected}
+        onDeleteSelected={onDeleteSelected}
+        onInsertBlank={onInsertBlank}
+        onReverse={onReverse}
+      />
+
       {activeTool === 'split' && (
         <SplitPanel
           totalPages={pages.length}
-          selectedCount={pages.filter((p) => p.selected).length}
+          selectedCount={selectedCount}
           splitRange={splitRange}
           onSplitRangeChange={onSplitRangeChange}
           splitMode={splitMode}
@@ -282,7 +309,9 @@ export default function Workspace({
               <span>Press &amp; hold to drag pages into new positions</span>
             </div>
           )}
-          <div className={`workspace-grid ${isMobile && activeTool === 'rearrange' ? 'rearrange-active' : ''}`}>
+          <div
+            className={`workspace-grid ${isMobile && activeTool === 'rearrange' ? 'rearrange-active' : ''} ${selectedCount > 0 ? 'has-selection' : ''}`}
+          >
             {pages.map((page, index) => (
               <PageThumbnail
                 key={page.id}
@@ -293,7 +322,13 @@ export default function Workspace({
                 onDelete={onDelete}
                 onToggleSelect={onToggleSelect}
                 onMovePage={onMovePage}
-                onClick={() => openPreview(index)}
+                showFileTag={hasMultipleFiles}
+                // Ctrl/Cmd/Shift-click toggles selection; a plain click previews.
+                onClick={(e) =>
+                  e.ctrlKey || e.metaKey || e.shiftKey
+                    ? onToggleSelect(page.id)
+                    : openPreview(index)
+                }
               />
             ))}
           </div>
@@ -313,6 +348,7 @@ export default function Workspace({
                 onToggleSelect={onToggleSelect}
                 onMovePage={onMovePage}
                 isOverlay={true}
+                showFileTag={hasMultipleFiles}
                 style={{ cursor: 'grabbing', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', transform: 'scale(1.05)', rotate: '2deg' }}
               />
             );

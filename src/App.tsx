@@ -18,6 +18,7 @@ import {
   splitPdf,
   extractPages,
   compressPdf,
+  createBlankPage,
   parseRanges,
   downloadFile,
   downloadFilesOrZip,
@@ -418,6 +419,86 @@ function App() {
     [pages, updatePages]
   );
 
+  // --- Bulk page actions (the toolbar above the grid) -----------------------
+
+  const handleSelectAll = useCallback(
+    (select: boolean) => {
+      updatePages(pages.map(p => (p.selected === select ? p : { ...p, selected: select })));
+    },
+    [pages, updatePages]
+  );
+
+  const handleRotateSelected = useCallback(() => {
+    if (!pages.some(p => p.selected)) return;
+    updatePages(pages.map(p => (p.selected ? { ...p, rotation: (p.rotation + 90) % 360 } : p)));
+  }, [pages, updatePages]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!pages.some(p => p.selected)) return;
+    updatePages(pages.filter(p => !p.selected));
+  }, [pages, updatePages]);
+
+  // Each selected page gets an unselected copy right after it. Annotations are
+  // plain data, so sharing the array between the two is safe — edits replace it.
+  const handleDuplicateSelected = useCallback(() => {
+    if (!pages.some(p => p.selected)) return;
+    const stamp = Date.now();
+    const next: PageInfo[] = [];
+    pages.forEach((p, i) => {
+      next.push(p);
+      if (p.selected) {
+        next.push({ ...p, id: `${p.id}-copy-${stamp}-${i}`, selected: false });
+      }
+    });
+    updatePages(next);
+  }, [pages, updatePages]);
+
+  const handleReverse = useCallback(() => {
+    if (pages.length < 2) return;
+    updatePages([...pages].reverse());
+  }, [pages, updatePages]);
+
+  // A blank page goes after the last selected page, or at the very end. The
+  // blank is a one-page "file" of its own, so it gets a fresh file index.
+  const handleInsertBlank = useCallback(async () => {
+    try {
+      const lastSelected = pages.reduce((acc, p, i) => (p.selected ? i : acc), -1);
+      const insertAt = lastSelected >= 0 ? lastSelected + 1 : pages.length;
+      const reference = pages[insertAt - 1] ?? pages[0];
+      const blank = await createBlankPage(fileCountRef.current++, reference);
+      setHistory(prev => {
+        const at = Math.min(insertAt, prev.present.length);
+        return pushState(prev, [...prev.present.slice(0, at), blank, ...prev.present.slice(at)]);
+      });
+    } catch (err) {
+      console.error('Could not add a blank page:', err);
+      showToast('error', `Couldn't add a blank page — ${describeLoadError(err)}.`);
+    }
+  }, [pages, showToast]);
+
+  // Ctrl/Cmd+A selects every page and Delete removes the selection — only on
+  // the page-grid tools, never while typing or with a dialog open.
+  useEffect(() => {
+    if (activeTool === 'edit' || activeTool === 'unlock' || activeTool === 'verify') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (pages.length === 0) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        handleSelectAll(!pages.every(p => p.selected));
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && pages.some(p => p.selected)) {
+        e.preventDefault();
+        handleDeleteSelected();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeTool, pages, handleSelectAll, handleDeleteSelected]);
+
   // Move a page manually (for mobile view where DND is disabled)
   const handleMovePage = useCallback(
     (id: string, direction: 'left' | 'right') => {
@@ -729,6 +810,12 @@ function App() {
           onUnlocked={handleUnlocked}
           onAnnotationsChange={handleAnnotationsChange}
           onCheckpoint={handleCheckpoint}
+          onSelectAll={handleSelectAll}
+          onRotateSelected={handleRotateSelected}
+          onDuplicateSelected={handleDuplicateSelected}
+          onDeleteSelected={handleDeleteSelected}
+          onInsertBlank={handleInsertBlank}
+          onReverse={handleReverse}
         />
 
         {activeTool !== 'unlock' && activeTool !== 'verify' && (
