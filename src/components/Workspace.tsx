@@ -254,6 +254,7 @@ export default function Workspace({
 
       {activeTool === 'compress' && (
         <CompressPanel
+          pages={pages}
           compressionQuality={compressionQuality}
           onQualityChange={onCompressionQualityChange}
         />

@@ -4162,3 +4162,79 @@ body { font-variant-numeric: tabular-nums; }
 .stamp-panel {
   align-items: start;
 }
+
+/* ==========================================================================
+   Compression size estimate
+   ========================================================================== */
+.compress-estimate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-light);
+}
+.compress-estimate-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 96px;
+}
+.compress-estimate-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+}
+.compress-estimate-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.compress-estimate-value.strong {
+  color: var(--color-text);
+}
+.compress-estimate-arrow {
+  color: var(--color-text-muted);
+}
+.compress-estimate-pill {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+}
+.compress-estimate-skeleton {
+  width: 72px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--color-border-light) 25%,
+    var(--color-border) 50%,
+    var(--color-border-light) 75%
+  );
+  background-size: 200% 100%;
+  animation: compress-shimmer 1.2s linear infinite;
+}
+@keyframes compress-shimmer {
+  to { background-position: -200% 0; }
+}
+.compress-estimate-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .compress-estimate-skeleton { animation: none; }
+}

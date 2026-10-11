@@ -286,6 +286,87 @@ export function clearFileBuffers() {
   fileBuffers.clear();
 }
 
+const A4_POINTS: [number, number] = [595.28, 841.89];
+
+/**
+ * A new, empty page as its own one-page "file", so it slots into the page
+ * list like any other source. Sized to match `reference` (the page it's being
+ * inserted next to) so a blank page in a Letter or landscape document doesn't
+ * come out A4; falls back to A4 if the reference can't be measured.
+ */
+export async function createBlankPage(
+  fileIndex: number,
+  reference?: PageInfo
+): Promise<PageInfo> {
+  let [width, height] = A4_POINTS;
+  if (reference) {
+    try {
+      const source = await loadForEdit(reference.fileIndex);
+      const size = source.getPage(reference.pageIndex).getSize();
+      const turned = effectiveRotation(source.getPage(reference.pageIndex).getRotation().angle, reference.rotation);
+      [width, height] = turned === 90 || turned === 270 ? [size.height, size.width] : [size.width, size.height];
+    } catch {
+      // Keep A4.
+    }
+  }
+
+  const doc = await PDFDocument.create();
+  doc.addPage([width, height]);
+  const bytes = await doc.save();
+  storeFileBuffer(
+    fileIndex,
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  );
+
+  // Thumbnails render at 0.5 scale elsewhere; match that so the grid stays even.
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * 0.5);
+  canvas.height = Math.round(height * 0.5);
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  return {
+    id: `${fileIndex}-0-${Date.now()}`,
+    fileIndex,
+    fileName: 'Blank page',
+    pageIndex: 0,
+    totalPagesInFile: 1,
+    rotation: 0,
+    thumbnail: canvas.toDataURL('image/jpeg', 0.7),
+    selected: false,
+  };
+}
+
+/** "1.2 MB" — for download confirmations. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 2 : 1)} MB`;
+}
+
+/**
+ * Combined size of the source files behind `pages`, but only when every page
+ * of each of those files is still present — otherwise "before" would count
+ * pages the output never had and a before/after comparison would mislead.
+ * Returns undefined when it can't be compared fairly.
+ */
+export function wholeSourceSize(pages: PageInfo[]): number | undefined {
+  const counts = new Map<number, { present: number; total: number }>();
+  for (const p of pages) {
+    const entry = counts.get(p.fileIndex) ?? { present: 0, total: p.totalPagesInFile };
+    entry.present += 1;
+    counts.set(p.fileIndex, entry);
+  }
+  let size = 0;
+  for (const [fileIndex, { present, total }] of counts) {
+    const buffer = fileBuffers.get(fileIndex);
+    if (!buffer || present !== total) return undefined;
+    size += buffer.byteLength;
+  }
+  return size;
+}
+
 /**
  * A page's on-screen rotation: the user's rotations stack on top of whatever
  * /Rotate the source page already carried (which is also how the thumbnails
@@ -609,6 +690,50 @@ export async function compressPdf(
     return { data: lossless, alreadyOptimal: true };
   }
   return { data: rasterized, alreadyOptimal: false };
+}
+
+export interface CompressionEstimate {
+  /** Size of the source file(s), when every page of each is still present. */
+  before?: number;
+  /** Predicted size of the compressed download. */
+  after: number;
+  /** True when every page was actually compressed; false when extrapolated from a sample. */
+  exact: boolean;
+  /** Compressing wouldn't help — the download would be the untouched rebuild. */
+  alreadyOptimal: boolean;
+}
+
+/** Documents above this many pages are estimated from an even sample. */
+const ESTIMATE_SAMPLE_PAGES = 8;
+
+/**
+ * Predict what `compressPdf` would produce at `quality` without paying for the
+ * whole document: up to a handful of evenly-spaced pages are compressed for
+ * real and the saving ratio is applied to the full size. Small documents are
+ * measured exactly.
+ */
+export async function estimateCompression(
+  pages: PageInfo[],
+  quality: number
+): Promise<CompressionEstimate> {
+  const exact = pages.length <= ESTIMATE_SAMPLE_PAGES;
+  const sample = exact
+    ? pages
+    : Array.from({ length: ESTIMATE_SAMPLE_PAGES }, (_, i) =>
+        pages[Math.round((i * (pages.length - 1)) / (ESTIMATE_SAMPLE_PAGES - 1))]
+      );
+
+  const raster = await rasterizeToJpegPdf(sample, quality);
+  const lossless = await buildPdf(sample);
+  const alreadyOptimal = raster.length >= lossless.length;
+  const before = wholeSourceSize(pages);
+
+  if (exact) {
+    return { before, after: Math.min(raster.length, lossless.length), exact, alreadyOptimal };
+  }
+  const baseline = before ?? Math.round((lossless.length * pages.length) / sample.length);
+  const ratio = Math.min(1, raster.length / lossless.length);
+  return { before, after: Math.round(baseline * ratio), exact, alreadyOptimal };
 }
 
 /**
