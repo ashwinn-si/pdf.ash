@@ -235,8 +235,9 @@ export default function PdfEditor({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedId, handleDelete]);
 
-  /** Drop a signature, centred on `at`, then hand control back to Select so it
-   * can be nudged or resized straight away. */
+  /** Drop a signature, centred on `at`. The Sign tool (and its drawer, and the
+   * chosen signature) deliberately stay active so several can be placed in a
+   * row; the new mark is selected, so it can be dragged or resized right away. */
   const placeSignature = useCallback(
     (at: Point, dataUrl: string, naturalWidth: number, naturalHeight: number) => {
       if (!rendered) return;
@@ -252,7 +253,6 @@ export default function PdfEditor({
         h,
         dataUrl,
       });
-      setTool('select');
     },
     [rendered, handleCommit, opacities.signature]
   );
