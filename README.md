@@ -12,7 +12,7 @@ pdf.ash is a unified, single-page web application that allows you to perform mul
 - **Compress PDF:** Reduce the file size of your PDF documents for easier sharing via email or web, with a live "current size → new size" preview as you move the quality slider.
 - **Convert PDF:** Seamlessly convert your PDF pages to high-quality PNG, JPG, or extract text (TXT).
 - **Images & Markdown to PDF:** Drop JPG, PNG, WebP or Markdown files anywhere and they're converted to PDF automatically, ready to merge.
-- **Watermark & Page Numbers:** Stamp a diagonal or horizontal text watermark and number every page (position, format, start number, skip cover).
+- **Watermark & Page Numbers:** Stamp a diagonal or horizontal text watermark and number every page (position, format, start number, skip cover), with a live preview of your own pages before you download.
 - **Bulk Page Tools:** Select all, rotate/duplicate/delete the selection, insert blank pages, reverse the order — with Ctrl/⌘+A and Delete shortcuts.
 - **Merge & Arrange:** Upload multiple PDFs (or images and Markdown files, which are converted automatically) to combine them into one document, drag pages into any order, and delete or rotate individual pages.
 - **Dark Mode & Light Mode:** A visually stunning UI that adapts to your preferred system theme.

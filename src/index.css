@@ -4031,11 +4031,21 @@ body { font-variant-numeric: tabular-nums; }
 /* ==========================================================================
    Watermark & page numbers panel
    ========================================================================== */
-.stamp-panel {
+.stamp-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
   gap: 16px;
+  align-items: start;
   margin-bottom: 20px;
+}
+.stamp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+@media (max-width: 960px) {
+  .stamp-layout { grid-template-columns: minmax(0, 1fr); }
 }
 .stamp-card {
   border-radius: var(--radius-md);
@@ -4284,9 +4294,6 @@ body { font-variant-numeric: tabular-nums; }
   }
 }
 
-.stamp-panel {
-  align-items: start;
-}
 
 @media (max-width: 768px) {
   /* Nothing selected: the "click ✓" hint costs a whole row on a phone. */
@@ -4577,3 +4584,88 @@ body { font-variant-numeric: tabular-nums; }
   .signature-drawer,
   .signature-drawer-panel { transition: none; }
 }
+
+/* ==========================================================================
+   Watermark live preview
+   ========================================================================== */
+.stamp-preview {
+  border-radius: var(--radius-md);
+  padding: 18px 20px 20px;
+  background: var(--glass-mid);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  min-width: 0;
+}
+.stamp-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stamp-preview-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+.stamp-preview-nav button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.stamp-preview-nav button:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.stamp-preview-nav button:disabled { opacity: 0.35; cursor: not-allowed; }
+.stamp-preview-nav button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.stamp-preview-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-light);
+}
+.stamp-preview-canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 460px;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: var(--shadow-3);
+}
+.stamp-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+.stamp-preview-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+.stamp-preview-stage .stamp-preview-note { margin: 0; }

@@ -7,11 +7,13 @@ import {
   type WatermarkLayout,
 } from '../utils/pdfStamp';
 import { unsupportedChars } from '../utils/pdfText';
+import type { PageInfo } from '../utils/pdfRenderer';
+import StampPreview from './StampPreview';
 
 interface StampPanelProps {
   options: StampOptions;
   onChange: (options: StampOptions) => void;
-  totalPages: number;
+  pages: PageInfo[];
 }
 
 const COLORS: { id: WatermarkColor; label: string; swatch: string }[] = [
@@ -92,7 +94,8 @@ function Toggle({
   );
 }
 
-export default function StampPanel({ options, onChange, totalPages }: StampPanelProps) {
+export default function StampPanel({ options, onChange, pages }: StampPanelProps) {
+  const totalPages = pages.length;
   const { watermark, pageNumbers } = options;
   const patchWatermark = (patch: Partial<StampOptions['watermark']>) =>
     onChange({ ...options, watermark: { ...watermark, ...patch } });
@@ -102,6 +105,7 @@ export default function StampPanel({ options, onChange, totalPages }: StampPanel
   const replaced = unsupportedChars(watermark.text);
 
   return (
+    <div className="stamp-layout">
     <div className="stamp-panel">
       <section className={`stamp-card ${watermark.enabled ? 'enabled' : ''}`}>
         <header className="stamp-card-header">
@@ -272,6 +276,9 @@ export default function StampPanel({ options, onChange, totalPages }: StampPanel
           </div>
         )}
       </section>
+    </div>
+
+      <StampPreview pages={pages} options={options} />
     </div>
   );
 }

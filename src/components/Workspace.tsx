@@ -269,7 +269,7 @@ export default function Workspace({
         <StampPanel
           options={stampOptions}
           onChange={onStampOptionsChange}
-          totalPages={pages.length}
+          pages={pages}
         />
       )}
 

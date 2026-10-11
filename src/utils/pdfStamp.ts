@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, degrees, type PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, degrees, type PDFFont, type PDFPage } from 'pdf-lib';
 import { toWinAnsi } from './pdfText';
 
 export type WatermarkColor = 'gray' | 'red' | 'blue' | 'black';
@@ -41,7 +41,7 @@ export const DEFAULT_STAMP_OPTIONS: StampOptions = {
   },
 };
 
-const WATERMARK_COLORS: Record<WatermarkColor, [number, number, number]> = {
+export const WATERMARK_COLORS: Record<WatermarkColor, [number, number, number]> = {
   gray: [0.45, 0.45, 0.45],
   red: [0.85, 0.12, 0.15],
   blue: [0.1, 0.3, 0.8],
@@ -88,41 +88,117 @@ function viewOf(page: PDFPage) {
   return { visibleW, visibleH, rot, toPage };
 }
 
-/** Draw `text` with its visual centre at (cx, cy), `angle` degrees counter-clockwise. */
-function drawCentered(
-  page: PDFPage,
-  text: string,
-  font: Awaited<ReturnType<PDFDocument['embedFont']>>,
-  size: number,
-  cx: number,
-  cy: number,
-  angle: number,
-  color: [number, number, number],
-  opacity: number
-) {
-  const view = viewOf(page);
-  const width = font.widthOfTextAtSize(text, size);
-  const height = font.heightAtSize(size, { descender: false });
-  const rad = (angle * Math.PI) / 180;
-  // Baseline start so the text's centre sits on (cx, cy) once rotated.
-  const sx = cx - (width / 2) * Math.cos(rad) + (height / 2) * Math.sin(rad);
-  const sy = cy - (width / 2) * Math.sin(rad) - (height / 2) * Math.cos(rad);
-  const { x, y } = view.toPage(sx, sy);
-  page.drawText(text, {
-    x,
-    y,
-    size,
-    font,
-    color: rgb(...color),
-    opacity,
-    rotate: degrees(angle + view.rot),
-  });
+/** Fonts used for stamps — `regular` for page numbers, `bold` for watermarks. */
+export interface StampFonts {
+  regular: PDFFont;
+  bold: PDFFont;
+}
+
+export async function embedStampFonts(doc: PDFDocument): Promise<StampFonts> {
+  return {
+    regular: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+  };
+}
+
+let previewFonts: Promise<StampFonts> | null = null;
+/** Font metrics for the live preview — same Helvetica metrics the real run uses. */
+export function loadStampFonts(): Promise<StampFonts> {
+  previewFonts ??= PDFDocument.create().then(embedStampFonts);
+  return previewFonts;
+}
+
+/** One piece of text to stamp, positioned in the page *as displayed* (points,
+ * origin bottom-left, `angle` degrees counter-clockwise about its centre). */
+export interface StampMark {
+  text: string;
+  font: 'regular' | 'bold';
+  size: number;
+  cx: number;
+  cy: number;
+  angle: number;
+  color: [number, number, number];
+  opacity: number;
 }
 
 function formatPageNumber(format: PageNumberFormat, n: number, last: number): string {
   if (format === 'page-n') return `Page ${n}`;
   if (format === 'n-of-total') return `${n} of ${last}`;
   return `${n}`;
+}
+
+/**
+ * Where everything goes on one page. This is the single source of truth for
+ * both the real stamping (`applyStamps`) and the on-screen preview, so what
+ * the preview shows is what the download contains.
+ */
+export function layoutStamps(
+  visibleW: number,
+  visibleH: number,
+  index: number,
+  count: number,
+  options: StampOptions,
+  fonts: StampFonts
+): StampMark[] {
+  const marks: StampMark[] = [];
+
+  const wm = options.watermark;
+  const watermarkText = wm.enabled ? toWinAnsi(wm.text).text.trim() : '';
+  if (watermarkText) {
+    const diagonal = wm.layout === 'diagonal';
+    const unit = fonts.bold.widthOfTextAtSize(watermarkText, 1) || 1;
+    const target = diagonal
+      ? Math.min(visibleW, visibleH) * Math.SQRT2 * 0.7
+      : visibleW * 0.75;
+    marks.push({
+      text: watermarkText,
+      font: 'bold',
+      size: Math.max(10, Math.min(150, target / unit)),
+      cx: visibleW / 2,
+      cy: visibleH / 2,
+      angle: diagonal ? 45 : 0,
+      color: WATERMARK_COLORS[wm.color],
+      opacity: Math.min(1, Math.max(0.05, wm.opacity / 100)),
+    });
+  }
+
+  const pn = options.pageNumbers;
+  if (pn.enabled && !(pn.skipFirstPage && index === 0)) {
+    const startAt = Number.isFinite(pn.startAt) ? Math.trunc(pn.startAt) : 1;
+    const label = formatPageNumber(pn.format, startAt + index, startAt + count - 1);
+    const width = fonts.regular.widthOfTextAtSize(label, PAGE_NUMBER_SIZE);
+    const [vertical, horizontal] = pn.position.split('-') as ['top' | 'bottom', 'left' | 'center' | 'right'];
+    marks.push({
+      text: label,
+      font: 'regular',
+      size: PAGE_NUMBER_SIZE,
+      cx:
+        horizontal === 'left'
+          ? PAGE_NUMBER_MARGIN + width / 2
+          : horizontal === 'right'
+            ? visibleW - PAGE_NUMBER_MARGIN - width / 2
+            : visibleW / 2,
+      cy: vertical === 'top' ? visibleH - PAGE_NUMBER_MARGIN : PAGE_NUMBER_MARGIN,
+      angle: 0,
+      color: [0.2, 0.2, 0.2],
+      opacity: 1,
+    });
+  }
+
+  return marks;
+}
+
+/** Baseline start point (displayed coordinates) that puts the mark's visual
+ * centre on (cx, cy) once rotated by its angle. */
+export function stampStart(mark: StampMark, fonts: StampFonts): { x: number; y: number } {
+  const font = fonts[mark.font];
+  const width = font.widthOfTextAtSize(mark.text, mark.size);
+  const height = font.heightAtSize(mark.size, { descender: false });
+  const rad = (mark.angle * Math.PI) / 180;
+  return {
+    x: mark.cx - (width / 2) * Math.cos(rad) + (height / 2) * Math.sin(rad),
+    y: mark.cy - (width / 2) * Math.sin(rad) - (height / 2) * Math.cos(rad),
+  };
 }
 
 /**
@@ -137,52 +213,23 @@ export async function applyStamps(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(data);
   const pages = doc.getPages();
-  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
-
-  const wm = options.watermark;
-  const watermarkText = wm.enabled ? toWinAnsi(wm.text).text.trim() : '';
-  const pn = options.pageNumbers;
-  const startAt = Number.isFinite(pn.startAt) ? Math.trunc(pn.startAt) : 1;
-  const lastNumber = startAt + pages.length - 1;
+  const fonts = await embedStampFonts(doc);
 
   pages.forEach((page, i) => {
-    const { visibleW, visibleH } = viewOf(page);
-
-    if (watermarkText) {
-      const diagonal = wm.layout === 'diagonal';
-      const unit = helveticaBold.widthOfTextAtSize(watermarkText, 1) || 1;
-      const target = diagonal
-        ? Math.min(visibleW, visibleH) * 1.0 * Math.SQRT2 * 0.7
-        : visibleW * 0.75;
-      const size = Math.max(10, Math.min(150, target / unit));
-      drawCentered(
-        page,
-        watermarkText,
-        helveticaBold,
-        size,
-        visibleW / 2,
-        visibleH / 2,
-        diagonal ? 45 : 0,
-        WATERMARK_COLORS[wm.color],
-        Math.min(1, Math.max(0.05, wm.opacity / 100))
-      );
+    const view = viewOf(page);
+    for (const mark of layoutStamps(view.visibleW, view.visibleH, i, pages.length, options, fonts)) {
+      const start = stampStart(mark, fonts);
+      const { x, y } = view.toPage(start.x, start.y);
+      page.drawText(mark.text, {
+        x,
+        y,
+        size: mark.size,
+        font: fonts[mark.font],
+        color: rgb(...mark.color),
+        opacity: mark.opacity,
+        rotate: degrees(mark.angle + view.rot),
+      });
     }
-
-    if (pn.enabled && !(pn.skipFirstPage && i === 0)) {
-      const label = formatPageNumber(pn.format, startAt + i, lastNumber);
-      const width = helvetica.widthOfTextAtSize(label, PAGE_NUMBER_SIZE);
-      const [vertical, horizontal] = pn.position.split('-') as ['top' | 'bottom', 'left' | 'center' | 'right'];
-      const cx =
-        horizontal === 'left'
-          ? PAGE_NUMBER_MARGIN + width / 2
-          : horizontal === 'right'
-            ? visibleW - PAGE_NUMBER_MARGIN - width / 2
-            : visibleW / 2;
-      const cy = vertical === 'top' ? visibleH - PAGE_NUMBER_MARGIN : PAGE_NUMBER_MARGIN;
-      drawCentered(page, label, helvetica, PAGE_NUMBER_SIZE, cx, cy, 0, [0.2, 0.2, 0.2], 1);
-    }
-
     onProgress?.(Math.round(((i + 1) / pages.length) * 100));
   });
 

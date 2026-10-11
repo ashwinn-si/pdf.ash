@@ -39,7 +39,7 @@ Failures anywhere in this flow surface as a dismissible toast (`components/Toast
 `activeTool` (type `Tool` from `Sidebar.tsx`) controls which panel renders inside `Workspace`. Tools: `merge` (labelled "Merge & Arrange" — it also covers reordering/rotating/deleting pages, and non-PDF uploads are converted on the way in), `edit`, `stamp`, `split`, `compress`, `convert`, `unlock`, `verify`. The sidebar groups them (Organize / Edit / Optimize & convert / Security).
 
 - `merge/edit` → `buildPdf` → optional password lock via `lockPdfBytes` (qpdf, AES-256)
-- `stamp` → `buildPdf` then `applyStamps` (`utils/pdfStamp.ts`: text watermark + page numbers drawn onto the finished PDF, honouring each page's /Rotate and CropBox), then the same optional password lock as merge. Options live in `App.tsx` (`stampOptions`) and are edited in `StampPanel`.
+- `stamp` → `buildPdf` then `applyStamps` (`utils/pdfStamp.ts`: text watermark + page numbers drawn onto the finished PDF, honouring each page's /Rotate and CropBox), then the same optional password lock as merge. Options live in `App.tsx` (`stampOptions`) and are edited in `StampPanel`, beside a live `StampPreview` (canvas: the real page via `renderPageImage`, last 6 cached, with the stamps drawn on top). Both the download and the preview get their text, size, position, colour and opacity from `layoutStamps` + `stampStart` in `pdfStamp.ts`, so the preview can't drift from the output.
 - `compress` → `compressPdf` (re-renders pages via pdfjs canvas at lower quality, rebuilds with pdf-lib; returns `{ data, alreadyOptimal }` — if rasterizing came out larger than the lossless rebuild, the lossless one wins and the UI shows a notice instead of silently handing back a bigger file)
 - `split` → three modes (`SplitPanel`'s `SplitMode`): `range`/`individual` → `splitPdf` with parsed page ranges → `downloadFilesOrZip`; `selected` (only offered once pages are selected) → `extractPages` on the selected pages → a single PDF download
 - `convert` → `convertPdfToImages` (PNG/JPG, zips its own output when there's more than one page) or `convertPdfToText` (pdfjs text layer)
@@ -65,6 +65,7 @@ Failures anywhere in this flow surface as a dismissible toast (`components/Toast
 | `src/utils/pdfStamp.ts` | Watermark + page-number stamping (`applyStamps`, `DEFAULT_STAMP_OPTIONS`) |
 | `src/components/PageToolbar.tsx` | Bulk page actions above the grid: select all, rotate/duplicate/delete selected, insert blank page, reverse |
 | `src/components/CompressPanel.tsx` | Quality slider plus a live size estimate (`estimateCompression`: really compresses ≤8 evenly-sampled pages, debounced, cached per quality+page set) |
+| `src/components/StampPreview.tsx` | Live canvas preview of the watermark / page numbers on a real page, with page navigation |
 | `src/components/StampPanel.tsx` | Options UI for the `stamp` tool |
 | `src/components/Toast.tsx` | Dismissible error/notice toast, bottom-right above the BottomBar |
 
