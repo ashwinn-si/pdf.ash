@@ -8,6 +8,7 @@ import {
   type PDFFont,
 } from 'pdf-lib';
 import {
+  arrowHeadPoints,
   hexToRgb01,
   opacityOf,
   type Annotation,
@@ -115,6 +116,12 @@ export function scaleAnnotation(a: Annotation, k: number): Annotation {
     case 'cross':
     case 'check':
       return { ...a, x: a.x * k, y: a.y * k, size: a.size * k };
+    case 'line':
+    case 'arrow':
+      return { ...a, x: a.x * k, y: a.y * k, dx: a.dx * k, dy: a.dy * k, strokeWidth: a.strokeWidth * k };
+    case 'rect':
+    case 'ellipse':
+      return { ...a, x: a.x * k, y: a.y * k, w: a.w * k, h: a.h * k, strokeWidth: a.strokeWidth * k };
     default:
       return { ...a, x: a.x * k, y: a.y * k, w: a.w * k, h: a.h * k };
   }
@@ -156,6 +163,56 @@ export async function stampAnnotations(
           opacity: opacityOf(a),
           blendMode: BlendMode.Multiply,
         });
+        break;
+      }
+
+      case 'rect':
+      case 'ellipse': {
+        const opacity = opacityOf(a);
+        const border = a.strokeWidth > 0 ? colorOf(a.color) : undefined;
+        const fill = a.fill ? colorOf(a.fill) : undefined;
+        if (!border && !fill) break;
+        const style = {
+          color: fill,
+          opacity,
+          borderColor: border,
+          borderWidth: border ? a.strokeWidth : 0,
+          borderOpacity: opacity,
+          rotate,
+        };
+        if (a.kind === 'rect') {
+          // Same anchoring as a highlight: the box's on-screen bottom-left.
+          const anchor = toUserSpace(a.x, a.y + a.h, page);
+          page.drawRectangle({ x: anchor.x, y: anchor.y, width: a.w, height: a.h, ...style });
+        } else {
+          // An ellipse is placed by its centre and rotates about it, so the
+          // display-space radii carry over unchanged under the counter-rotation.
+          const centre = toUserSpace(a.x + a.w / 2, a.y + a.h / 2, page);
+          page.drawEllipse({ x: centre.x, y: centre.y, xScale: a.w / 2, yScale: a.h / 2, ...style });
+        }
+        break;
+      }
+
+      case 'line':
+      case 'arrow': {
+        const color = colorOf(a.color);
+        const opacity = opacityOf(a);
+        const end = { x: a.x + a.dx, y: a.y + a.dy };
+        const segments: [Point, Point][] = [[{ x: a.x, y: a.y }, end]];
+        if (a.kind === 'arrow') {
+          const [b1, b2] = arrowHeadPoints(a);
+          segments.push([end, b1], [end, b2]);
+        }
+        for (const [from, to] of segments) {
+          page.drawLine({
+            start: toUserSpace(from.x, from.y, page),
+            end: toUserSpace(to.x, to.y, page),
+            thickness: a.strokeWidth,
+            color,
+            opacity,
+            lineCap: LineCapStyle.Round,
+          });
+        }
         break;
       }
 

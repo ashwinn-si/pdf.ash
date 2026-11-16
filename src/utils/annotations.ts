@@ -14,7 +14,24 @@ export type AnnotationKind =
   | 'pencil'
   | 'cross'
   | 'check'
-  | 'signature';
+  | 'signature'
+  | 'rect'
+  | 'ellipse'
+  | 'line'
+  | 'arrow';
+
+/** Box shapes: drawn by dragging a box, with a border and an optional fill. */
+export type BoxShapeKind = 'rect' | 'ellipse';
+/** Stroke shapes: drawn by dragging from one end to the other. */
+export type LineShapeKind = 'line' | 'arrow';
+
+export function isBoxShape(kind: AnnotationKind | null): kind is BoxShapeKind {
+  return kind === 'rect' || kind === 'ellipse';
+}
+
+export function isLineShape(kind: AnnotationKind | null): kind is LineShapeKind {
+  return kind === 'line' || kind === 'arrow';
+}
 
 export interface Point {
   x: number;
@@ -93,7 +110,39 @@ export interface SignatureAnnotation {
   opacity: number;
 }
 
+export interface BoxShapeAnnotation {
+  id: string;
+  kind: BoxShapeKind;
+  /** Top-left of the shape's box (the ellipse is inscribed in it). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Border colour. */
+  color: string;
+  /** Interior colour, or null for an outline-only shape. */
+  fill: string | null;
+  /** Border width in points; 0 means no border. */
+  strokeWidth: number;
+  opacity: number;
+}
+
+export interface LineShapeAnnotation {
+  id: string;
+  kind: LineShapeKind;
+  /** Start point; an arrow's head sits at the far end, (x + dx, y + dy). */
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  color: string;
+  strokeWidth: number;
+  opacity: number;
+}
+
 export type Annotation =
+  | BoxShapeAnnotation
+  | LineShapeAnnotation
   | TextAnnotation
   | HighlightAnnotation
   | PencilAnnotation
@@ -106,6 +155,19 @@ export type EditorTool = 'select' | AnnotationKind;
 
 export const INK_COLORS = ['#1f2937', '#dc2626', '#2563eb', '#16a34a'];
 export const HIGHLIGHT_COLORS = ['#fde047', '#86efac', '#7dd3fc', '#fda4af'];
+/** A Paint-style palette for shape borders and fills. */
+export const SHAPE_COLORS = [
+  '#1f2937',
+  '#ffffff',
+  '#dc2626',
+  '#f97316',
+  '#facc15',
+  '#16a34a',
+  '#0ea5e9',
+  '#2563eb',
+  '#7c3aed',
+  '#db2777',
+];
 
 /**
  * Starting opacity per kind. A highlight is translucent by definition — it has
@@ -119,6 +181,10 @@ export const DEFAULT_OPACITY: Record<AnnotationKind, number> = {
   cross: 1,
   check: 1,
   signature: 1,
+  rect: 1,
+  ellipse: 1,
+  line: 1,
+  arrow: 1,
 };
 
 /** Tolerates annotations created before opacity existed. */
@@ -185,6 +251,22 @@ export function annotationBounds(a: Annotation): {
     case 'highlight':
     case 'signature':
       return { x: a.x, y: a.y, w: a.w, h: a.h };
+    case 'rect':
+    case 'ellipse': {
+      // The border is centred on the box edge, so half of it sits outside.
+      const pad = a.strokeWidth / 2;
+      return { x: a.x - pad, y: a.y - pad, w: a.w + pad * 2, h: a.h + pad * 2 };
+    }
+    case 'line':
+    case 'arrow': {
+      const pad = linePad(a);
+      return {
+        x: Math.min(a.x, a.x + a.dx) - pad,
+        y: Math.min(a.y, a.y + a.dy) - pad,
+        w: Math.abs(a.dx) + pad * 2,
+        h: Math.abs(a.dy) + pad * 2,
+      };
+    }
     case 'cross':
     case 'check':
       return { x: a.x - a.size / 2, y: a.y - a.size / 2, w: a.size, h: a.size };
@@ -215,6 +297,35 @@ export function annotationBounds(a: Annotation): {
   }
 }
 
+/** Room around a line's end points: half its width, or the arrowhead's reach. */
+function linePad(a: LineShapeAnnotation): number {
+  return a.kind === 'arrow' ? Math.max(a.strokeWidth / 2, arrowHeadSize(a.strokeWidth) * 0.6) : a.strokeWidth / 2;
+}
+
+/** Length of an arrowhead's barbs for a given stroke width. */
+export function arrowHeadSize(strokeWidth: number): number {
+  return Math.max(8, strokeWidth * 4);
+}
+
+/**
+ * The two barb end points of an arrow's head, at (x + dx, y + dy). Shared by
+ * the on-screen SVG and the PDF stamp so both draw the same head.
+ */
+export function arrowHeadPoints(a: LineShapeAnnotation): [Point, Point] {
+  const tip = { x: a.x + a.dx, y: a.y + a.dy };
+  const len = Math.hypot(a.dx, a.dy) || 1;
+  const ux = a.dx / len;
+  const uy = a.dy / len;
+  const size = Math.min(arrowHeadSize(a.strokeWidth), len * 0.6);
+  const spread = Math.PI / 7;
+  const cos = Math.cos(spread);
+  const sin = Math.sin(spread);
+  return [
+    { x: tip.x - size * (ux * cos - uy * sin), y: tip.y - size * (uy * cos + ux * sin) },
+    { x: tip.x - size * (ux * cos + uy * sin), y: tip.y - size * (uy * cos - ux * sin) },
+  ];
+}
+
 /** Translate an annotation by a delta in display points. */
 export function moveAnnotation(a: Annotation, dx: number, dy: number): Annotation {
   if (a.kind === 'pencil') {
@@ -228,7 +339,7 @@ export function moveAnnotation(a: Annotation, dx: number, dy: number): Annotatio
  * matching how desktop PDF editors treat stamps, ink and text objects.
  */
 export function resizesFreely(a: Annotation): boolean {
-  return a.kind === 'highlight';
+  return a.kind === 'highlight' || isBoxShape(a.kind) || isLineShape(a.kind);
 }
 
 /**
@@ -245,6 +356,37 @@ export function resizeAnnotation(a: Annotation, w: number, h: number): Annotatio
     case 'highlight':
     case 'signature':
       return { ...a, w: Math.max(4, w), h: Math.max(4, h) };
+    case 'rect':
+    case 'ellipse': {
+      // w/h are the outer bounds, border included; keep the top-left pinned.
+      const sw = a.strokeWidth;
+      return {
+        ...a,
+        x: b.x + sw / 2,
+        y: b.y + sw / 2,
+        w: Math.max(4, w - sw),
+        h: Math.max(4, h - sw),
+      };
+    }
+    case 'line':
+    case 'arrow': {
+      // Scale the line's own extent (bounds minus padding) so its end points
+      // land at the same relative spots in the new box.
+      const pad = linePad(a);
+      const innerW = b.w - pad * 2;
+      const innerH = b.h - pad * 2;
+      const sx = innerW > 0 ? Math.max(0, w - pad * 2) / innerW : 1;
+      const sy = innerH > 0 ? Math.max(0, h - pad * 2) / innerH : 1;
+      const left = b.x + pad;
+      const top = b.y + pad;
+      return {
+        ...a,
+        x: left + (a.x - left) * sx,
+        y: top + (a.y - top) * sy,
+        dx: a.dx * sx,
+        dy: a.dy * sy,
+      };
+    }
     case 'cross':
     case 'check': {
       const size = Math.max(4, a.size * Math.min(kx, ky));
@@ -274,6 +416,10 @@ export function annotationSize(a: Annotation): number | null {
     case 'text':
       return a.fontSize;
     case 'pencil':
+    case 'rect':
+    case 'ellipse':
+    case 'line':
+    case 'arrow':
       return a.strokeWidth;
     case 'cross':
     case 'check':
@@ -288,6 +434,10 @@ export function withAnnotationSize(a: Annotation, value: number): Annotation {
     case 'text':
       return { ...a, fontSize: value };
     case 'pencil':
+    case 'rect':
+    case 'ellipse':
+    case 'line':
+    case 'arrow':
       return { ...a, strokeWidth: value };
     case 'cross':
     case 'check':
@@ -300,6 +450,11 @@ export function withAnnotationSize(a: Annotation, value: number): Annotation {
 /** Signatures carry their own colours; everything else has one ink colour. */
 export function withAnnotationColor(a: Annotation, color: string): Annotation {
   return a.kind === 'signature' ? a : { ...a, color };
+}
+
+/** Set (or clear, with null) a box shape's interior colour. */
+export function withAnnotationFill(a: Annotation, fill: string | null): Annotation {
+  return isBoxShape(a.kind) ? { ...(a as BoxShapeAnnotation), fill } : a;
 }
 
 /** Apply a font family / bold / italic change to a text annotation. */

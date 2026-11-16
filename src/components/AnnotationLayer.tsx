@@ -2,6 +2,9 @@ import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react
 import { Trash2 } from 'lucide-react';
 import {
   annotationBounds,
+  arrowHeadPoints,
+  isBoxShape,
+  isLineShape,
   moveAnnotation,
   resizeAnnotation,
   resizesFreely,
@@ -9,6 +12,8 @@ import {
   newAnnotationId,
   opacityOf,
   type Annotation,
+  type BoxShapeKind,
+  type LineShapeKind,
   type EditorTool,
   type Point,
   type TextFont,
@@ -25,6 +30,8 @@ interface AnnotationLayerProps {
   italic: boolean;
   markSize: number;
   opacity: number;
+  /** Interior colour for new rectangles/ellipses, or null for outline only. */
+  fill: string | null;
   /** Displayed page box in PDF points — the SVG's viewBox. */
   pointWidth: number;
   pointHeight: number;
@@ -49,14 +56,67 @@ interface AnnotationLayerProps {
 
 type Draft =
   | { kind: 'pencil'; points: Point[] }
-  | { kind: 'highlight'; origin: Point; current: Point };
+  | { kind: 'highlight'; origin: Point; current: Point }
+  | { kind: BoxShapeKind; origin: Point; current: Point; constrain: boolean }
+  | { kind: LineShapeKind; origin: Point; current: Point; constrain: boolean };
 
 type Gesture =
   | { kind: 'drag'; id: string; origin: Point; original: Annotation }
-  | { kind: 'resize'; id: string; origin: Point; original: Annotation };
+  | { kind: 'resize'; id: string; origin: Point; original: Annotation; handle: Handle };
+
+/** Which edge(s) a resize handle moves: compass points, like Paint's handles. */
+type Handle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+const CORNER_HANDLES: Handle[] = ['nw', 'ne', 'sw', 'se'];
+const ALL_HANDLES: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+const HANDLE_CURSOR: Record<Handle, string> = {
+  n: 'ns-resize',
+  s: 'ns-resize',
+  e: 'ew-resize',
+  w: 'ew-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+  nw: 'nwse-resize',
+  se: 'nwse-resize',
+};
+
+/** Minimum size, in points, a resize can shrink a mark's box to. */
+const MIN_RESIZE = 6;
 
 /** Minimum drag, in points, before a highlight is worth keeping. */
 const MIN_HIGHLIGHT = 3;
+
+/**
+ * The box a shape draft covers. With Shift held it becomes a square (so a
+ * rectangle is a square and an ellipse a circle), as in Paint.
+ */
+function draftBox(origin: Point, current: Point, constrain: boolean) {
+  let dx = current.x - origin.x;
+  let dy = current.y - origin.y;
+  if (constrain) {
+    const side = Math.max(Math.abs(dx), Math.abs(dy));
+    dx = Math.sign(dx || 1) * side;
+    dy = Math.sign(dy || 1) * side;
+  }
+  return {
+    x: Math.min(origin.x, origin.x + dx),
+    y: Math.min(origin.y, origin.y + dy),
+    w: Math.abs(dx),
+    h: Math.abs(dy),
+  };
+}
+
+/** A line's vector; with Shift held it snaps to the nearest 45°. */
+function draftVector(origin: Point, current: Point, constrain: boolean) {
+  const dx = current.x - origin.x;
+  const dy = current.y - origin.y;
+  if (!constrain) return { dx, dy };
+  const len = Math.hypot(dx, dy);
+  const step = Math.PI / 4;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+  return { dx: Math.cos(angle) * len, dy: Math.sin(angle) * len };
+}
 
 export default function AnnotationLayer({
   annotations,
@@ -69,6 +129,7 @@ export default function AnnotationLayer({
   italic,
   markSize,
   opacity,
+  fill,
   pointWidth,
   pointHeight,
   widthPx,
@@ -168,6 +229,13 @@ export default function AnnotationLayer({
         svgRef.current?.setPointerCapture(e.pointerId);
         setDraft({ kind: 'highlight', origin: p, current: p });
         break;
+      case 'rect':
+      case 'ellipse':
+      case 'line':
+      case 'arrow':
+        svgRef.current?.setPointerCapture(e.pointerId);
+        setDraft({ kind: tool, origin: p, current: p, constrain: e.shiftKey });
+        break;
       case 'cross':
       case 'check':
         onCommit({ id: newAnnotationId(), kind: tool, x: p.x, y: p.y, size: markSize, color, opacity });
@@ -208,20 +276,42 @@ export default function AnnotationLayer({
       setDraft({ ...draft, current: p });
       return;
     }
+    if (draft) {
+      setDraft({ ...draft, current: p, constrain: e.shiftKey });
+      return;
+    }
     if (gesture?.kind === 'drag') {
       onUpdate(moveAnnotation(gesture.original, p.x - gesture.origin.x, p.y - gesture.origin.y));
       return;
     }
     if (gesture?.kind === 'resize') {
       const orig = gesture.original;
+      const { handle } = gesture;
       const b = annotationBounds(orig);
-      const w = Math.max(6, b.w + (p.x - gesture.origin.x));
-      // Only a highlight stretches; the rest keep their proportions so a cross
-      // stays square and a signature is never squashed.
-      const h = resizesFreely(orig)
-        ? Math.max(4, b.h + (p.y - gesture.origin.y))
-        : (b.h / b.w) * w;
-      onUpdate(resizeAnnotation(orig, w, h));
+      const dx = p.x - gesture.origin.x;
+      const dy = p.y - gesture.origin.y;
+      // Move only the edges this handle owns; the opposite edges stay put.
+      let left = b.x;
+      let top = b.y;
+      let right = b.x + b.w;
+      let bottom = b.y + b.h;
+      if (handle.includes('w')) left = Math.min(left + dx, right - MIN_RESIZE);
+      if (handle.includes('e')) right = Math.max(right + dx, left + MIN_RESIZE);
+      if (handle.includes('n')) top = Math.min(top + dy, bottom - MIN_RESIZE);
+      if (handle.includes('s')) bottom = Math.max(bottom + dy, top + MIN_RESIZE);
+      const w = right - left;
+      let h = bottom - top;
+      // Shapes, highlights and lines stretch freely; text, marks and
+      // signatures keep their proportions (corner handles only), driven by
+      // the horizontal drag.
+      if (!resizesFreely(orig)) {
+        h = (b.h / b.w) * w;
+        if (handle.includes('n')) top = bottom - h;
+      }
+      // resizeAnnotation pins the top-left of the bounds; shift it into place.
+      const resized = resizeAnnotation(orig, w, h);
+      const nb = annotationBounds(resized);
+      onUpdate(moveAnnotation(resized, left - nb.x, top - nb.y));
     }
   };
 
@@ -244,6 +334,25 @@ export default function AnnotationLayer({
       const h = Math.abs(draft.current.y - draft.origin.y);
       if (w >= MIN_HIGHLIGHT && h >= MIN_HIGHLIGHT) {
         onCommit({ id: newAnnotationId(), kind: 'highlight', x, y, w, h, color, opacity });
+      }
+    } else if (draft && isBoxShape(draft.kind)) {
+      const box = draftBox(draft.origin, draft.current, draft.constrain);
+      if (box.w >= MIN_HIGHLIGHT && box.h >= MIN_HIGHLIGHT) {
+        onCommit({ id: newAnnotationId(), kind: draft.kind, ...box, color, fill, strokeWidth, opacity });
+      }
+    } else if (draft && isLineShape(draft.kind)) {
+      const v = draftVector(draft.origin, draft.current, draft.constrain);
+      if (Math.hypot(v.dx, v.dy) >= MIN_HIGHLIGHT) {
+        onCommit({
+          id: newAnnotationId(),
+          kind: draft.kind,
+          x: draft.origin.x,
+          y: draft.origin.y,
+          ...v,
+          color,
+          strokeWidth,
+          opacity,
+        });
       }
     }
     setDraft(null);
@@ -284,6 +393,15 @@ export default function AnnotationLayer({
     };
 
     switch (a.kind) {
+      case 'rect':
+      case 'ellipse':
+      case 'line':
+      case 'arrow':
+        return (
+          <g key={a.id} {...common}>
+            {renderShape(a)}
+          </g>
+        );
       case 'highlight':
         return (
           <rect
@@ -382,6 +500,25 @@ export default function AnnotationLayer({
     }
   };
 
+  /** Draft shape, built with the same renderer as a committed one. */
+  const draftShape: Annotation | null = (() => {
+    if (!draft || draft.kind === 'pencil' || draft.kind === 'highlight') return null;
+    if (isBoxShape(draft.kind)) {
+      const box = draftBox(draft.origin, draft.current, draft.constrain);
+      return { id: 'draft', kind: draft.kind, ...box, color, fill, strokeWidth, opacity };
+    }
+    return {
+      id: 'draft',
+      kind: draft.kind,
+      x: draft.origin.x,
+      y: draft.origin.y,
+      ...draftVector(draft.origin, draft.current, draft.constrain),
+      color,
+      strokeWidth,
+      opacity,
+    };
+  })();
+
   const selected = annotations.find((a) => a.id === selectedId) ?? null;
   const selBounds = selected ? annotationBounds(selected) : null;
 
@@ -420,6 +557,8 @@ export default function AnnotationLayer({
           />
         )}
 
+        {draftShape && <g pointerEvents="none">{renderShape(draftShape)}</g>}
+
         {draft?.kind === 'highlight' && (
           <rect
             x={Math.min(draft.origin.x, draft.current.x)}
@@ -448,38 +587,52 @@ export default function AnnotationLayer({
         <>
           <button
             className="annotation-handle delete"
+            // Just outside the top-right corner, clear of the corner handle.
             style={{
-              left: (selBounds.x + selBounds.w) * scale,
-              top: (selBounds.y - 2) * scale,
+              left: (selBounds.x + selBounds.w) * scale + 18,
+              top: selBounds.y * scale - 18,
             }}
             onClick={() => onDelete(selected.id)}
             aria-label="Delete annotation"
           >
             <Trash2 size={12} />
           </button>
-          <button
-            className="annotation-handle resize"
-            style={{
-              left: (selBounds.x + selBounds.w) * scale,
-              top: (selBounds.y + selBounds.h) * scale,
-            }}
-            aria-label="Resize annotation"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              (e.target as HTMLElement).setPointerCapture(e.pointerId);
-              onBeginEdit();
-              setGesture({
-                kind: 'resize',
-                id: selected.id,
-                origin: toPoint(e),
-                original: selected,
-              });
-            }}
-            onPointerMove={(e) =>
-              handlePointerMove(e as unknown as React.PointerEvent<SVGSVGElement>)
-            }
-            onPointerUp={handlePointerUp}
-          />
+          {(resizesFreely(selected) ? ALL_HANDLES : CORNER_HANDLES).map((handle) => {
+            const hx = handle.includes('w')
+              ? selBounds.x
+              : handle.includes('e')
+                ? selBounds.x + selBounds.w
+                : selBounds.x + selBounds.w / 2;
+            const hy = handle.includes('n')
+              ? selBounds.y
+              : handle.includes('s')
+                ? selBounds.y + selBounds.h
+                : selBounds.y + selBounds.h / 2;
+            return (
+              <button
+                key={handle}
+                className={`annotation-handle resize handle-${handle}`}
+                style={{ left: hx * scale, top: hy * scale, cursor: HANDLE_CURSOR[handle] }}
+                aria-label={`Resize annotation (${handle})`}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                  onBeginEdit();
+                  setGesture({
+                    kind: 'resize',
+                    id: selected.id,
+                    origin: toPoint(e),
+                    original: selected,
+                    handle,
+                  });
+                }}
+                onPointerMove={(e) =>
+                  handlePointerMove(e as unknown as React.PointerEvent<SVGSVGElement>)
+                }
+                onPointerUp={handlePointerUp}
+              />
+            );
+          })}
         </>
       )}
 
@@ -533,4 +686,50 @@ export default function AnnotationLayer({
       )}
     </div>
   );
+}
+
+/**
+ * SVG for a rectangle, ellipse, line or arrow. An unfilled box still gets a
+ * transparent fill so it can be grabbed anywhere inside, and a line gets a
+ * wide invisible stroke beneath it so a hairline is easy to hit.
+ */
+function renderShape(a: Annotation) {
+  const op = opacityOf(a);
+  if (a.kind === 'rect' || a.kind === 'ellipse') {
+    const paint = {
+      fill: a.fill ?? 'transparent',
+      fillOpacity: a.fill ? op : 0,
+      stroke: a.strokeWidth > 0 ? a.color : 'none',
+      strokeOpacity: op,
+      strokeWidth: a.strokeWidth,
+    };
+    return a.kind === 'rect' ? (
+      <rect x={a.x} y={a.y} width={a.w} height={a.h} {...paint} />
+    ) : (
+      <ellipse cx={a.x + a.w / 2} cy={a.y + a.h / 2} rx={a.w / 2} ry={a.h / 2} {...paint} />
+    );
+  }
+  if (a.kind === 'line' || a.kind === 'arrow') {
+    const end = { x: a.x + a.dx, y: a.y + a.dy };
+    let d = `M${a.x},${a.y} L${end.x},${end.y}`;
+    if (a.kind === 'arrow') {
+      const [b1, b2] = arrowHeadPoints(a);
+      d += ` M${b1.x},${b1.y} L${end.x},${end.y} L${b2.x},${b2.y}`;
+    }
+    return (
+      <>
+        <path d={d} stroke="transparent" strokeWidth={Math.max(10, a.strokeWidth + 8)} fill="none" />
+        <path
+          d={d}
+          stroke={a.color}
+          strokeOpacity={op}
+          strokeWidth={a.strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </>
+    );
+  }
+  return null;
 }

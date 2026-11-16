@@ -9,11 +9,21 @@ import {
   Signature,
   Bold,
   Italic,
+  Square,
+  Circle,
+  Slash,
+  ArrowUpRight,
+  Ban,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import {
   INK_COLORS,
   HIGHLIGHT_COLORS,
+  SHAPE_COLORS,
   TEXT_FONTS,
+  isBoxShape,
+  isLineShape,
   type AnnotationKind,
   type EditorTool,
   type TextFont,
@@ -31,6 +41,9 @@ interface AnnotationToolbarProps {
   hasSelection: boolean;
   color: string | null;
   onColorChange: (color: string) => void;
+  /** Interior colour of a rectangle/ellipse (null = no fill). */
+  fill: string | null;
+  onFillChange: (fill: string | null) => void;
   size: number | null;
   onSizeChange: (size: number) => void;
   opacity: number | null;
@@ -44,6 +57,10 @@ interface AnnotationToolbarProps {
   onTextStyleChange: (style: { font?: TextFont; bold?: boolean; italic?: boolean }) => void;
   /** True when the signature drawer is on screen (desktop), which changes the hint. */
   hasSignatureDrawer?: boolean;
+  /** Pages with marks not yet saved into the page; 0 disables Save. */
+  unsavedPages: number;
+  isSaving: boolean;
+  onSave: () => void;
 }
 
 const TOOLS: { id: EditorTool; label: string; icon: React.ReactNode }[] = [
@@ -56,12 +73,23 @@ const TOOLS: { id: EditorTool; label: string; icon: React.ReactNode }[] = [
   { id: 'signature', label: 'Sign', icon: <Signature size={18} /> },
 ];
 
+const SHAPE_TOOLS: { id: EditorTool; label: string; icon: React.ReactNode }[] = [
+  { id: 'rect', label: 'Rectangle', icon: <Square size={18} /> },
+  { id: 'ellipse', label: 'Ellipse', icon: <Circle size={18} /> },
+  { id: 'line', label: 'Line', icon: <Slash size={18} /> },
+  { id: 'arrow', label: 'Arrow', icon: <ArrowUpRight size={18} /> },
+];
+
 /** What the size slider means, per annotation kind. */
 const SIZE_RANGE: Partial<Record<AnnotationKind, { min: number; max: number; label: string }>> = {
   text: { min: 6, max: 72, label: 'Size' },
   pencil: { min: 0.5, max: 16, label: 'Stroke' },
   cross: { min: 6, max: 72, label: 'Size' },
   check: { min: 6, max: 72, label: 'Size' },
+  rect: { min: 0, max: 24, label: 'Border' },
+  ellipse: { min: 0, max: 24, label: 'Border' },
+  line: { min: 0.5, max: 24, label: 'Width' },
+  arrow: { min: 0.5, max: 24, label: 'Width' },
 };
 
 const KIND_LABEL: Record<AnnotationKind, string> = {
@@ -71,7 +99,78 @@ const KIND_LABEL: Record<AnnotationKind, string> = {
   cross: 'Cross',
   check: 'Check',
   signature: 'Signature',
+  rect: 'Rectangle',
+  ellipse: 'Ellipse',
+  line: 'Line',
+  arrow: 'Arrow',
 };
+
+/**
+ * A row of swatches plus a custom colour well. `allowNone` adds a leading
+ * "no colour" swatch (used for a shape's fill).
+ */
+function ColorPicker({
+  label,
+  palette,
+  value,
+  onChange,
+  onEditStart,
+  allowNone = false,
+}: {
+  label: string;
+  palette: string[];
+  value: string | null;
+  onChange: (color: string | null) => void;
+  onEditStart: () => void;
+  allowNone?: boolean;
+}) {
+  const custom = value !== null && !palette.includes(value);
+  return (
+    <div className="annotation-swatches" role="group" aria-label={label}>
+      <span className="annotation-swatch-label">{label}</span>
+      {allowNone && (
+        <button
+          className={`annotation-swatch none ${value === null ? 'active' : ''}`}
+          onClick={() => {
+            onEditStart();
+            onChange(null);
+          }}
+          aria-label={`No ${label.toLowerCase()}`}
+          aria-pressed={value === null}
+          title={`No ${label.toLowerCase()}`}
+        >
+          <Ban size={14} />
+        </button>
+      )}
+      {palette.map((c) => (
+        <button
+          key={c}
+          className={`annotation-swatch ${value === c ? 'active' : ''}`}
+          style={{ background: c }}
+          onClick={() => {
+            onEditStart();
+            onChange(c);
+          }}
+          aria-label={`${label} ${c}`}
+          aria-pressed={value === c}
+        />
+      ))}
+      <label
+        className={`annotation-swatch custom ${custom ? 'active' : ''}`}
+        style={custom ? { background: value! } : undefined}
+        title="Custom colour"
+      >
+        <input
+          type="color"
+          aria-label={`Custom ${label.toLowerCase()}`}
+          value={value ?? '#000000'}
+          onFocus={onEditStart}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </label>
+    </div>
+  );
+}
 
 export default function AnnotationToolbar({
   tool,
@@ -80,6 +179,8 @@ export default function AnnotationToolbar({
   hasSelection,
   color,
   onColorChange,
+  fill,
+  onFillChange,
   size,
   onSizeChange,
   opacity,
@@ -90,8 +191,14 @@ export default function AnnotationToolbar({
   italic,
   onTextStyleChange,
   hasSignatureDrawer = false,
+  unsavedPages,
+  isSaving,
+  onSave,
 }: AnnotationToolbarProps) {
-  const palette = editingKind === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS;
+  const isShape = isBoxShape(editingKind) || isLineShape(editingKind);
+  const palette =
+    editingKind === 'highlight' ? HIGHLIGHT_COLORS : isShape ? SHAPE_COLORS : INK_COLORS;
+  const showFill = isBoxShape(editingKind);
   const showColors = editingKind !== null && editingKind !== 'signature' && color !== null;
   const range = editingKind ? SIZE_RANGE[editingKind] : undefined;
   const showSize = range !== undefined && size !== null;
@@ -101,18 +208,47 @@ export default function AnnotationToolbar({
   return (
     <div className="annotation-toolbar" role="toolbar" aria-label="Annotation tools">
       <div className="annotation-toolbar-row annotation-toolbar-tools">
-        {TOOLS.map((t) => (
-          <button
-            key={t.id}
-            className={`annotation-tool ${tool === t.id ? 'active' : ''}`}
-            onClick={() => onToolChange(t.id)}
-            aria-pressed={tool === t.id}
-            title={t.label}
-          >
-            {t.icon}
-            <span>{t.label}</span>
-          </button>
+        {[TOOLS, SHAPE_TOOLS].map((group, gi) => (
+          <React.Fragment key={gi}>
+            {gi > 0 && <span className="annotation-tool-divider" aria-hidden="true" />}
+            {group.map((t) => (
+              <button
+                key={t.id}
+                className={`annotation-tool ${tool === t.id ? 'active' : ''}`}
+                onClick={() => onToolChange(t.id)}
+                aria-pressed={tool === t.id}
+                title={
+                  t.id === 'rect' || t.id === 'ellipse'
+                    ? `${t.label} (hold Shift for a ${t.id === 'rect' ? 'square' : 'circle'})`
+                    : t.id === 'line' || t.id === 'arrow'
+                      ? `${t.label} (hold Shift to snap to 45°)`
+                      : t.label
+                }
+              >
+                {t.icon}
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </React.Fragment>
         ))}
+        <button
+          className="annotation-save-btn"
+          onClick={onSave}
+          disabled={unsavedPages === 0 || isSaving}
+          title={
+            unsavedPages === 0
+              ? 'Nothing to save yet'
+              : 'Save your marks into the page, so the preview and other tools show them (Ctrl S). Undo brings them back as editable marks.'
+          }
+        >
+          {isSaving ? <Loader2 size={16} className="spinning" /> : <Save size={16} />}
+          <span>{isSaving ? 'Saving…' : 'Save'}</span>
+          {unsavedPages > 0 && !isSaving && (
+            <em className="annotation-save-count" aria-label={`${unsavedPages} unsaved pages`}>
+              {unsavedPages}
+            </em>
+          )}
+        </button>
       </div>
 
       {/*
@@ -132,21 +268,24 @@ export default function AnnotationToolbar({
         )}
 
         {showColors && (
-          <div className="annotation-swatches" role="group" aria-label="Colour">
-            {palette.map((c) => (
-              <button
-                key={c}
-                className={`annotation-swatch ${color === c ? 'active' : ''}`}
-                style={{ background: c }}
-                onClick={() => {
-                  onEditStart();
-                  onColorChange(c);
-                }}
-                aria-label={`Colour ${c}`}
-                aria-pressed={color === c}
-              />
-            ))}
-          </div>
+          <ColorPicker
+            label={showFill ? 'Border' : 'Colour'}
+            palette={palette}
+            value={color}
+            onChange={(c) => c && onColorChange(c)}
+            onEditStart={onEditStart}
+          />
+        )}
+
+        {showFill && (
+          <ColorPicker
+            label="Fill"
+            palette={SHAPE_COLORS}
+            value={fill}
+            onChange={onFillChange}
+            onEditStart={onEditStart}
+            allowNone
+          />
         )}
 
         {showText && (

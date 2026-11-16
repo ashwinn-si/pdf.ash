@@ -10,6 +10,12 @@ export interface PageInfo {
   rotation: number;
   thumbnail: string;
   selected: boolean;
+  /**
+   * The upload this page came from, when its buffer now lives under another
+   * `fileIndex` (a page saved in the Edit tool). Used for the source-file tag
+   * so saving doesn't make the page look like it came from a different file.
+   */
+  sourceFileIndex?: number;
   /** Marks added with the Edit tool, stamped in at download time. */
   annotations?: Annotation[];
 }

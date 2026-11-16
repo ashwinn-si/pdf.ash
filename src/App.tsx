@@ -19,6 +19,7 @@ import {
   extractPages,
   compressPdf,
   createBlankPage,
+  bakePageAnnotations,
   formatBytes,
   wholeSourceSize,
   parseRanges,
@@ -66,6 +67,16 @@ interface UploadFailure {
 
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>('merge');
+  // Which page the Edit tool opens on, when entered from a page's Edit button.
+  const [editPageId, setEditPageId] = useState<string | null>(null);
+  const handleSelectTool = useCallback((tool: Tool) => {
+    setEditPageId(null);
+    setActiveTool(tool);
+  }, []);
+  const handleEditPage = useCallback((id: string) => {
+    setEditPageId(id);
+    setActiveTool('edit');
+  }, []);
   const [history, setHistory] = useState<HistoryState>(createInitialHistory([]));
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -409,6 +420,40 @@ function App() {
     },
     []
   );
+
+  // Edit tool "Save": bake every page's marks into the page, so thumbnails,
+  // the preview and the other tools show them. One undo step restores them.
+  const [isSavingEdits, setIsSavingEdits] = useState(false);
+  const handleSaveEdits = useCallback(async () => {
+    const targets = pages.filter(p => p.annotations && p.annotations.length > 0);
+    if (targets.length === 0 || isSavingEdits) return;
+    setIsSavingEdits(true);
+    try {
+      const baked = new Map<string, { from: PageInfo; to: PageInfo }>();
+      for (const page of targets) {
+        baked.set(page.id, { from: page, to: await bakePageAnnotations(page, fileCountRef.current++) });
+      }
+      setHistory(prev =>
+        pushState(
+          prev,
+          prev.present.map(p => {
+            const hit = baked.get(p.id);
+            // Skip a page whose marks changed while saving; it stays unsaved.
+            return hit && hit.from.annotations === p.annotations ? { ...hit.to, selected: p.selected } : p;
+          })
+        )
+      );
+      showToast(
+        'notice',
+        `Saved changes to ${targets.length} page${targets.length === 1 ? '' : 's'}.`
+      );
+    } catch (err) {
+      console.error('Could not save edits:', err);
+      showToast('error', `Couldn't save your changes — ${describeLoadError(err)}.`);
+    } finally {
+      setIsSavingEdits(false);
+    }
+  }, [pages, isSavingEdits, showToast]);
 
   const handleCheckpoint = useCallback(() => {
     setHistory(prev => pushState(prev, prev.present));
@@ -790,7 +835,7 @@ function App() {
       <Analytics />
       <Sidebar
         activeTool={activeTool}
-        onSelectTool={setActiveTool}
+        onSelectTool={handleSelectTool}
         pageCount={pages.length}
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -843,6 +888,10 @@ function App() {
           onDeleteSelected={handleDeleteSelected}
           onInsertBlank={handleInsertBlank}
           onReverse={handleReverse}
+          onEditPage={handleEditPage}
+          onSaveEdits={handleSaveEdits}
+          isSavingEdits={isSavingEdits}
+          editPageId={editPageId}
         />
 
         {activeTool !== 'unlock' && activeTool !== 'verify' && (

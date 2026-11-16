@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { useState, useEffect, useRef } from 'react';
-import { X, ChevronLeft, ChevronRight, RotateCw, Trash2, GripVertical } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, RotateCw, Trash2, GripVertical, PenLine } from 'lucide-react';
 import PageThumbnail, { ThumbnailCard } from './PageThumbnail';
 import UploadZone from './UploadZone';
 import SplitPanel, { type SplitMode } from './SplitPanel';
@@ -73,6 +73,13 @@ interface WorkspaceProps {
   onDeleteSelected: () => void;
   onInsertBlank: () => void;
   onReverse: () => void;
+  /** Switch to the Edit tool, opened on this page. */
+  onEditPage: (id: string) => void;
+  /** The page the Edit tool should open on (null = first page). */
+  editPageId: string | null;
+  /** Edit tool's Save: bake marks into the pages. */
+  onSaveEdits: () => void;
+  isSavingEdits: boolean;
 }
 
 export default function Workspace({
@@ -104,6 +111,10 @@ export default function Workspace({
   onDeleteSelected,
   onInsertBlank,
   onReverse,
+  onEditPage,
+  editPageId,
+  onSaveEdits,
+  isSavingEdits,
 }: WorkspaceProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
@@ -244,13 +255,16 @@ export default function Workspace({
           onRotate={onRotate}
           onAnnotationsChange={onAnnotationsChange}
           onCheckpoint={onCheckpoint}
+          initialPageId={editPageId}
+          onSave={onSaveEdits}
+          isSaving={isSavingEdits}
         />
       </div>
     );
   }
 
   const selectedCount = pages.filter((p) => p.selected).length;
-  const hasMultipleFiles = new Set(pages.map((p) => p.fileIndex)).size > 1;
+  const hasMultipleFiles = new Set(pages.map((p) => p.sourceFileIndex ?? p.fileIndex)).size > 1;
 
   return (
     <div className="workspace">
@@ -335,6 +349,7 @@ export default function Workspace({
                 onDelete={onDelete}
                 onToggleSelect={onToggleSelect}
                 onMovePage={onMovePage}
+                onEdit={onEditPage}
                 showFileTag={hasMultipleFiles}
                 // Ctrl/Cmd/Shift-click toggles selection; a plain click previews.
                 onClick={(e) =>
@@ -385,6 +400,18 @@ export default function Workspace({
                 Page {previewPageIndex! + 1} of {pages.length}
               </span>
               <div className="preview-modal-actions">
+                <button
+                  className="preview-btn"
+                  onClick={() => {
+                    const id = previewPage.id;
+                    setPreviewPageIndex(null);
+                    onEditPage(id);
+                  }}
+                  title="Edit this page"
+                  aria-label={`Edit page ${previewPageIndex! + 1}`}
+                >
+                  <PenLine size={20} />
+                </button>
                 <button
                   className="preview-btn"
                   onClick={() => onRotate(previewPage.id)}
@@ -459,6 +486,20 @@ export default function Workspace({
 
             <div className="preview-modal-footer">
               <span className="preview-filename">{previewPage.fileName}</span>
+              {previewPage.annotations && previewPage.annotations.length > 0 && (
+                <span className="preview-unsaved-note">
+                  This page has unsaved edits, which aren't shown here.{' '}
+                  <button
+                    onClick={() => {
+                      const id = previewPage.id;
+                      setPreviewPageIndex(null);
+                      onEditPage(id);
+                    }}
+                  >
+                    Open in editor
+                  </button>
+                </span>
+              )}
             </div>
           </div>
         </div>

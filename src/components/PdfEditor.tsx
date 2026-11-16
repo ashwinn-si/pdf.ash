@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, RotateCw, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RotateCw, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import AnnotationToolbar from './AnnotationToolbar';
 import AnnotationLayer from './AnnotationLayer';
 import SignatureModal from './SignatureModal';
@@ -20,7 +20,11 @@ import {
   annotationSize,
   withAnnotationSize,
   withAnnotationColor,
+  withAnnotationFill,
   withAnnotationOpacity,
+  moveAnnotation,
+  isBoxShape,
+  isLineShape,
   withTextStyle,
   newAnnotationId,
   type Annotation,
@@ -38,6 +42,11 @@ interface PdfEditorProps {
   onAnnotationsChange: (pageId: string, annotations: Annotation[], commit: boolean) => void;
   /** Duplicate the current state onto the undo stack before a gesture starts. */
   onCheckpoint: () => void;
+  /** Open on this page rather than the first (from a page's Edit button). */
+  initialPageId?: string | null;
+  /** Bake every page's marks into the page (the toolbar's Save button). */
+  onSave: () => void;
+  isSaving: boolean;
 }
 
 interface RenderedPage {
@@ -56,12 +65,23 @@ const SIGNATURE_WIDTH = 160;
  * long document left open all session shouldn't grow this without bound. */
 const RENDER_CACHE_LIMIT = 20;
 
-const DEFAULT_SIZES: Record<'text' | 'pencil' | 'cross' | 'check', number> = {
+type SizedKind = 'text' | 'pencil' | 'cross' | 'check' | 'rect' | 'ellipse' | 'line' | 'arrow';
+
+const DEFAULT_SIZES: Record<SizedKind, number> = {
   text: 14,
   pencil: 2.5,
   cross: 22,
   check: 22,
+  rect: 2,
+  ellipse: 2,
+  line: 2.5,
+  arrow: 2.5,
 };
+
+/** Zoom levels the +/- buttons step through, relative to "fit width" (1). */
+const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+
+const SIZED_KINDS = Object.keys(DEFAULT_SIZES) as SizedKind[];
 
 /**
  * Desktop widths get the one-click signature tray; phones keep the signature
@@ -87,11 +107,18 @@ export default function PdfEditor({
   onRotate,
   onAnnotationsChange,
   onCheckpoint,
+  initialPageId = null,
+  onSave,
+  isSaving,
 }: PdfEditorProps) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() =>
+    Math.max(0, initialPageId ? pages.findIndex((p) => p.id === initialPageId) : 0)
+  );
   const [tool, setTool] = useState<EditorTool>('select');
   const [inkColor, setInkColor] = useState(INK_COLORS[0]);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
+  const [shapeColor, setShapeColor] = useState('#2563eb');
+  const [fillColor, setFillColor] = useState<string | null>(null);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   const [opacities, setOpacities] = useState(DEFAULT_OPACITY);
   const [textFont, setTextFont] = useState<TextFont>('helvetica');
@@ -109,6 +136,15 @@ export default function PdfEditor({
   const [pickedSignature, setPickedSignature] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
   const [displayWidth, setDisplayWidth] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const zoomIn = useCallback(
+    () => setZoom((z) => ZOOM_STEPS.find((s) => s > z + 1e-6) ?? z),
+    []
+  );
+  const zoomOut = useCallback(
+    () => setZoom((z) => [...ZOOM_STEPS].reverse().find((s) => s < z - 1e-6) ?? z),
+    []
+  );
 
   const stageRef = useRef<HTMLDivElement>(null);
   const cacheRef = useRef<Map<string, RenderedPage>>(new Map());
@@ -117,7 +153,12 @@ export default function PdfEditor({
   const safeIndex = Math.min(index, Math.max(0, pages.length - 1));
   const page = pages[safeIndex] as PageInfo | undefined;
 
-  const cacheKey = page ? `${page.fileIndex}:${page.pageIndex}:${page.rotation}` : '';
+  // Zoomed in past 125% the 2× render goes soft, so switch to a sharper one.
+  // Two tiers only, so zooming doesn't re-render the page at every step.
+  const renderScale = zoom > 1.25 ? RENDER_SCALE * 2 : RENDER_SCALE;
+  const cacheKey = page
+    ? `${page.fileIndex}:${page.pageIndex}:${page.rotation}@${renderScale}`
+    : '';
 
   useEffect(() => {
     if (!page) return;
@@ -131,7 +172,7 @@ export default function PdfEditor({
     let cancelled = false;
     setIsRendering(true);
     setRenderError('');
-    renderPageImage(page.fileIndex, page.pageIndex, page.rotation, RENDER_SCALE)
+    renderPageImage(page.fileIndex, page.pageIndex, page.rotation, renderScale)
       .then((result) => {
         if (cancelled) return;
         const cache = cacheRef.current;
@@ -157,7 +198,7 @@ export default function PdfEditor({
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, page]);
+  }, [cacheKey, page, renderScale]);
 
   // Fit the page to the available width, never upscaling past 1 CSS px per point.
   useEffect(() => {
@@ -174,9 +215,66 @@ export default function PdfEditor({
   const layout = useMemo(() => {
     if (!rendered || displayWidth === 0) return null;
     const maxWidth = Math.max(240, displayWidth - 48);
-    const width = Math.min(maxWidth, rendered.pointWidth * 1.4);
+    const width = Math.min(maxWidth, rendered.pointWidth * 1.4) * zoom;
     return { width, height: (width / rendered.pointWidth) * rendered.pointHeight };
-  }, [rendered, displayWidth]);
+  }, [rendered, displayWidth, zoom]);
+
+  const unsavedPages = pages.filter((p) => p.annotations && p.annotations.length > 0).length;
+  const handleSave = useCallback(() => {
+    setSelectedId(null);
+    onSave();
+  }, [onSave]);
+
+  // Ctrl/Cmd+S saves the marks into the pages instead of the browser's "Save page".
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (unsavedPages > 0 && !isSaving) handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [unsavedPages, isSaving, handleSave]);
+
+  // Ctrl/Cmd + scroll, and trackpad pinch (which browsers report as a
+  // ctrl+wheel), zoom the page. Deltas are pooled so a pinch, which sends a
+  // stream of tiny deltas, steps one zoom level at a time.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    let pooled = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      pooled += e.deltaY;
+      if (Math.abs(pooled) < 40) return;
+      if (pooled < 0) zoomIn();
+      else zoomOut();
+      pooled = 0;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomIn, zoomOut]);
+
+  // Ctrl/Cmd + '+', '-' and '0' zoom the page instead of the whole browser tab.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        zoomIn();
+      } else if (e.key === '-') {
+        e.preventDefault();
+        zoomOut();
+      } else if (e.key === '0') {
+        e.preventDefault();
+        setZoom(1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [zoomIn, zoomOut]);
 
   // Memoised so the empty-page fallback doesn't produce a fresh array each
   // render and invalidate every callback below.
@@ -229,11 +327,22 @@ export default function PdfEditor({
         handleDelete(selectedId);
       } else if (e.key === 'Escape') {
         setSelectedId(null);
+      } else if (e.key.startsWith('Arrow')) {
+        // Arrow keys nudge the selected mark 1pt (Shift: 10pt). A held key
+        // repeats, but only the first press snapshots for undo.
+        const mark = annotations.find((a) => a.id === selectedId);
+        if (!mark) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        if (!e.repeat) onCheckpoint();
+        handleUpdate(moveAnnotation(mark, dx, dy));
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedId, handleDelete]);
+  }, [selectedId, handleDelete, annotations, handleUpdate, onCheckpoint]);
 
   /** Drop a signature, centred on `at`. The Sign tool (and its drawer, and the
    * chosen signature) deliberately stay active so several can be placed in a
@@ -313,8 +422,9 @@ export default function PdfEditor({
       ? null
       : tool;
 
-  const sizeKeyOf = (kind: AnnotationKind | null): keyof typeof sizes | null =>
-    kind === 'text' || kind === 'pencil' || kind === 'cross' || kind === 'check' ? kind : null;
+  const sizeKeyOf = (kind: AnnotationKind | null): SizedKind | null =>
+    SIZED_KINDS.includes(kind as SizedKind) ? (kind as SizedKind) : null;
+  const isShapeKind = (kind: AnnotationKind | null) => isBoxShape(kind) || isLineShape(kind);
 
   const toolbarSizeKey = sizeKeyOf(editingKind);
   const toolbarSize = selected
@@ -329,9 +439,19 @@ export default function PdfEditor({
       : selected.color
     : editingKind === 'highlight'
       ? highlightColor
-      : editingKind
-        ? inkColor
-        : null;
+      : isShapeKind(editingKind)
+        ? shapeColor
+        : editingKind
+          ? inkColor
+          : null;
+
+  const toolbarFill =
+    selected && isBoxShape(selected.kind) && 'fill' in selected ? selected.fill : fillColor;
+
+  const handleFillChange = (value: string | null) => {
+    if (selected) handleUpdate(withAnnotationFill(selected, value));
+    setFillColor(value);
+  };
 
   const selectedText = selected?.kind === 'text' ? selected : null;
   // Characters the selected (or being-typed) text mark has that the base-14
@@ -362,6 +482,7 @@ export default function PdfEditor({
   const handleColorChange = (value: string) => {
     if (selected) handleUpdate(withAnnotationColor(selected, value));
     if (editingKind === 'highlight') setHighlightColor(value);
+    else if (isShapeKind(editingKind)) setShapeColor(value);
     else setInkColor(value);
   };
 
@@ -378,7 +499,9 @@ export default function PdfEditor({
 
   if (pages.length === 0 || !page) return null;
 
-  const activeColor = tool === 'highlight' ? highlightColor : inkColor;
+  const activeColor =
+    tool === 'highlight' ? highlightColor : isShapeKind(tool === 'select' ? null : tool) ? shapeColor : inkColor;
+  const activeSizeKey = sizeKeyOf(tool === 'select' ? null : tool);
 
   return (
     <div className="pdf-editor">
@@ -392,6 +515,8 @@ export default function PdfEditor({
         hasSelection={selected !== null}
         color={toolbarColor}
         onColorChange={handleColorChange}
+        fill={toolbarFill}
+        onFillChange={handleFillChange}
         size={toolbarSize}
         onSizeChange={handleSizeChange}
         opacity={toolbarOpacity}
@@ -402,6 +527,9 @@ export default function PdfEditor({
         italic={selectedText?.italic ?? italic}
         onTextStyleChange={handleTextStyleChange}
         hasSignatureDrawer={isDesktop}
+        unsavedPages={unsavedPages}
+        isSaving={isSaving}
+        onSave={handleSave}
       />
 
       <div className="pdf-editor-body">
@@ -424,35 +552,6 @@ export default function PdfEditor({
         </div>
 
         <div className="pdf-editor-stage" ref={stageRef}>
-          <div className="pdf-editor-pagebar">
-            <button
-              className="pdf-editor-navbtn"
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              disabled={safeIndex === 0}
-              aria-label="Previous page"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="pdf-editor-pagelabel">
-              Page {safeIndex + 1} of {pages.length}
-            </span>
-            <button
-              className="pdf-editor-navbtn"
-              onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-              disabled={safeIndex === pages.length - 1}
-              aria-label="Next page"
-            >
-              <ChevronRight size={18} />
-            </button>
-            <button
-              className="pdf-editor-navbtn"
-              onClick={() => onRotate(page.id)}
-              title="Rotate page"
-              aria-label="Rotate page"
-            >
-              <RotateCw size={18} />
-            </button>
-          </div>
 
           {renderError && (
             <div className="pdf-editor-message error">
@@ -489,7 +588,12 @@ export default function PdfEditor({
                 annotations={annotations}
                 tool={tool}
                 color={activeColor}
-                strokeWidth={sizes.pencil}
+                strokeWidth={
+                  activeSizeKey && activeSizeKey !== 'pencil' && isShapeKind(activeSizeKey)
+                    ? sizes[activeSizeKey]
+                    : sizes.pencil
+                }
+                fill={fillColor}
                 fontSize={sizes.text}
                 textFont={textFont}
                 bold={bold}
@@ -510,6 +614,63 @@ export default function PdfEditor({
               />
             </div>
           )}
+
+          <div className="pdf-editor-pagebar">
+            <button
+              className="pdf-editor-navbtn"
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              disabled={safeIndex === 0}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="pdf-editor-pagelabel">
+              Page {safeIndex + 1} of {pages.length}
+            </span>
+            <button
+              className="pdf-editor-navbtn"
+              onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
+              disabled={safeIndex === pages.length - 1}
+              aria-label="Next page"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <button
+              className="pdf-editor-navbtn"
+              onClick={() => onRotate(page.id)}
+              title="Rotate page"
+              aria-label="Rotate page"
+            >
+              <RotateCw size={18} />
+            </button>
+            <span className="pdf-editor-pagebar-divider" aria-hidden="true" />
+            <button
+              className="pdf-editor-navbtn"
+              onClick={zoomOut}
+              disabled={zoom <= ZOOM_STEPS[0]}
+              title="Zoom out (Ctrl −)"
+              aria-label="Zoom out"
+            >
+              <ZoomOut size={18} />
+            </button>
+            <button
+              className="pdf-editor-zoomlabel"
+              onClick={() => setZoom(1)}
+              title="Fit to width (Ctrl 0)"
+              aria-label={`Zoom ${Math.round(zoom * 100)}%, reset to fit`}
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              className="pdf-editor-navbtn"
+              onClick={zoomIn}
+              disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+              title="Zoom in (Ctrl +)"
+              aria-label="Zoom in"
+            >
+              <ZoomIn size={18} />
+            </button>
+          </div>
 
           {unsupportedTextChars.length > 0 && (
             <p className="pdf-editor-unicode-hint">

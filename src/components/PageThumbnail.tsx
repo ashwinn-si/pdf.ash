@@ -1,4 +1,4 @@
-import { RotateCw, Trash2, Check } from 'lucide-react';
+import { RotateCw, Trash2, Check, PenLine } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
@@ -13,6 +13,8 @@ interface PageThumbnailProps {
   onDelete: (id: string) => void;
   onToggleSelect: (id: string) => void;
   onMovePage: (id: string, direction: 'left' | 'right') => void;
+  /** Open this page in the Edit tool. */
+  onEdit?: (id: string) => void;
   onClick?: (e: React.MouseEvent) => void;
   /** When pages come from several files, tag each with its source file. */
   showFileTag?: boolean;
@@ -26,6 +28,7 @@ export function ThumbnailCard({
   onRotate,
   onDelete,
   onToggleSelect,
+  onEdit,
   style,
   isDragging,
   isOverlay,
@@ -45,7 +48,8 @@ export function ThumbnailCard({
   // Selection drives the bulk actions in the page toolbar, so every grid tool
   // offers it — not just Split.
   const showCheckbox = activeTool !== 'edit';
-  const fileHue = (page.fileIndex * 67) % 360;
+  const fileHue = ((page.sourceFileIndex ?? page.fileIndex) * 67) % 360;
+  const unsavedMarks = page.annotations?.length ?? 0;
 
   return (
     <div
@@ -92,8 +96,35 @@ export function ThumbnailCard({
       <div className="page-thumbnail-footer">
         <span className="page-thumbnail-label">
           Page {index + 1}
+          {unsavedMarks > 0 && onEdit && (
+            <button
+              className="page-thumbnail-unsaved"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(page.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="This page has marks that aren't saved into it yet. They're still included when you download — open the editor and press Save to see them here."
+            >
+              Unsaved edits
+            </button>
+          )}
         </span>
         <div className="page-thumbnail-actions">
+          {onEdit && (
+            <button
+              className="page-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(page.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Edit this page"
+              aria-label={`Edit page ${index + 1}`}
+            >
+              <PenLine size={14} />
+            </button>
+          )}
           <button
             className="page-action-btn"
             onClick={(e) => {

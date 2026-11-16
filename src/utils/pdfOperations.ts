@@ -8,7 +8,7 @@ import {
 } from 'pdf-lib';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { zipSync, type Zippable } from 'fflate';
-import type { PageInfo } from './pdfRenderer';
+import { renderPdfThumbnails, type PageInfo } from './pdfRenderer';
 import { openPdf } from './pdfjs';
 import { stampAnnotations, type FontResolver } from './annotationStamp';
 import type { TextFont } from './annotations';
@@ -518,6 +518,33 @@ export async function buildPdf(
   }
 
   return outputPdf.save();
+}
+
+/**
+ * "Save" in the Edit tool: bake a page's marks (and its rotation) into the
+ * page itself. The result is a one-page PDF stored under a fresh `fileIndex`,
+ * exactly like a blank page, so the thumbnail, preview, rearranging and every
+ * other tool see the edited page. The page keeps its id and name; the old
+ * buffer stays in the store, so undo brings back the editable marks.
+ */
+export async function bakePageAnnotations(page: PageInfo, fileIndex: number): Promise<PageInfo> {
+  const bytes = await buildPdf([page]);
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  storeFileBuffer(fileIndex, buffer);
+  const { pages } = await renderPdfThumbnails(
+    new File([buffer], page.fileName, { type: 'application/pdf' }),
+    fileIndex
+  );
+  return {
+    ...page,
+    sourceFileIndex: page.sourceFileIndex ?? page.fileIndex,
+    fileIndex,
+    pageIndex: 0,
+    totalPagesInFile: 1,
+    rotation: 0,
+    thumbnail: pages[0].thumbnail,
+    annotations: undefined,
+  };
 }
 
 /**

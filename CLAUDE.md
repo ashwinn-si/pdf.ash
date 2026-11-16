@@ -93,6 +93,24 @@ Splitting into several files or converting several pages to images used to fire 
 
 Every user-facing failure — a file that couldn't be added, an invalid split range, a processing error, the compress "already optimised" notice — goes through the `Toast` component (`role="alert"` for errors, `role="status"` for notices; errors stay until dismissed or replaced, notices auto-dismiss after ~6s) instead of `alert()`. `describeLoadError(err)` (in `pdfOperations.ts`) turns a raw exception into a short, plain-language reason the toast prefixes with the file name.
 
+### Shapes (Edit tool)
+
+Besides text/highlight/pencil/cross/check/sign, the Edit toolbar has `rect`, `ellipse`, `line` and `arrow` (`utils/annotations.ts`). Rectangles/ellipses are boxes (`x,y,w,h`) with a border `color`, an optional `fill` (null = outline only) and `strokeWidth` (0 = no border); lines/arrows store a start point plus a `dx,dy` vector so their direction survives move/resize. Shift while dragging makes a square/circle or snaps a line to 45°. Shape colours use a Paint-style palette (`SHAPE_COLORS`) plus a custom colour well; the arrowhead geometry (`arrowHeadPoints`) is shared by the SVG layer and `annotationStamp.ts` so the download matches the screen.
+
+### Saving edits into pages
+
+The editor's **Save** button (Ctrl/Cmd+S) calls App's `handleSaveEdits`, which runs `bakePageAnnotations` (`pdfOperations.ts`) on every page with marks: `buildPdf([page])` stamps the marks and rotation into a one-page PDF stored under a fresh `fileIndex` (like a blank page), with a new thumbnail, `rotation: 0` and no `annotations`. The page keeps its `id`, and `sourceFileIndex` remembers the original upload so the source-file tag and colour don't change. It is one undo step, and undo brings the marks back as editable marks (the old buffer stays in the store). Pages with unsaved marks get an "Unsaved edits" chip in the grid and a note in the preview. Unsaved marks are still stamped at download.
+
+Selected marks show resize handles: all eight compass points for marks that stretch freely (`resizesFreely`: highlight, rect, ellipse, line, arrow), corners only for the ones that keep their proportions. Each handle moves only its own edges. Arrow keys nudge the selection 1pt (Shift: 10pt).
+
+### Editor zoom
+
+The editor's floating page bar (sticky at the bottom of `.pdf-editor-stage`) has zoom out / % (click = fit width) / zoom in, stepping through `ZOOM_STEPS` (50–300%, relative to fit width); Ctrl/Cmd `+` `-` `0` and Ctrl+scroll / trackpad pinch do the same. Above 125% the page is re-rendered at twice `RENDER_SCALE` (the scale is part of the render cache key) so it stays sharp. The stage uses `align-items: safe center` so a page wider than the stage scrolls from its left edge, and keeps a small bottom padding because sticky positioning counts it.
+
+### Per-page Edit button
+
+Each grid thumbnail and the page preview modal have an Edit button. It calls App's `handleEditPage`, which sets `editPageId` and switches to the `edit` tool; `PdfEditor`'s `initialPageId` picks the starting page. Picking a tool from the sidebar clears `editPageId`, so Edit opened that way starts on page 1.
+
 ### Signatures (Edit tool)
 
 Saved signatures live in `localStorage` (`utils/signatureStore.ts`, up to 8, newest first). On desktop widths (>768px, tracked live with `matchMedia` in `PdfEditor`) the Sign tool opens a **signature drawer** (`SignatureDrawer.tsx`) docked on the right of the page: it slides in from the right edge while the Sign tool is active (the wrapper animates its width so the page re-centres, the panel inside animates `translateX`), lists every saved signature (the newest is pre-selected), and has "Add new signature" (opens `SignatureModal` with "Remember" pre-ticked so the result is kept) and per-item delete. Picking one and clicking the page places it directly, with no dialog. The Sign tool, the drawer and the chosen signature stay as they are after placing (so several can be placed in a row); the new mark is selected and can be dragged/resized immediately, and the tool only changes when the user picks another one or closes the drawer. It is always mounted but `inert` while closed. On mobile no drawer is rendered and every placement opens the dialog. `PdfEditor` owns the logic: `activeSignature` is derived (picked one if still saved, else the newest), and `handleRequestSignature` decides between direct placement and the dialog.
